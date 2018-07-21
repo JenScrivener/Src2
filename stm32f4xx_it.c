@@ -37,6 +37,10 @@
 
 /* USER CODE BEGIN 0 */
 
+#include "RFM95.h"
+#include "SPI.h"
+#include <string.h>
+
 /* USER CODE END 0 */
 
 /* External variables --------------------------------------------------------*/
@@ -44,6 +48,32 @@
 /******************************************************************************/
 /*            Cortex-M4 Processor Interruption and Exception Handlers         */ 
 /******************************************************************************/
+
+/**
+* @brief This function handles System service call via SWI instruction.
+*/
+void SVC_Handler(void)
+{
+  /* USER CODE BEGIN SVCall_IRQn 0 */
+
+  /* USER CODE END SVCall_IRQn 0 */
+  /* USER CODE BEGIN SVCall_IRQn 1 */
+
+  /* USER CODE END SVCall_IRQn 1 */
+}
+
+/**
+* @brief This function handles Pendable request for system service.
+*/
+void PendSV_Handler(void)
+{
+  /* USER CODE BEGIN PendSV_IRQn 0 */
+
+  /* USER CODE END PendSV_IRQn 0 */
+  /* USER CODE BEGIN PendSV_IRQn 1 */
+
+  /* USER CODE END PendSV_IRQn 1 */
+}
 
 /**
 * @brief This function handles System tick timer.
@@ -66,6 +96,83 @@ void SysTick_Handler(void)
 /* For the available peripheral interrupt handler names,                      */
 /* please refer to the startup file (startup_stm32f4xx.s).                    */
 /******************************************************************************/
+
+/**
+* @brief This function handles EXTI line0 interrupt.
+*/
+void EXTI0_IRQHandler(void)
+{
+  /* USER CODE BEGIN EXTI0_IRQn 0 */
+
+	char serial[40];
+	sprintf(serial, "Hello World, Test, Testing 1");
+	RFM95_LoRa_Test_Send((uint8_t*)&serial,strlen(serial));
+
+	HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_13);
+
+  /* USER CODE END EXTI0_IRQn 0 */
+  HAL_GPIO_EXTI_IRQHandler(GPIO_PIN_0);
+  /* USER CODE BEGIN EXTI0_IRQn 1 */
+
+  /* USER CODE END EXTI0_IRQn 1 */
+}
+
+/**
+* @brief This function handles EXTI line1 interrupt.
+*/
+void EXTI1_IRQHandler(void)
+{
+  /* USER CODE BEGIN EXTI1_IRQn 0 */
+
+  /* USER CODE END EXTI1_IRQn 0 */
+  HAL_GPIO_EXTI_IRQHandler(GPIO_PIN_1);
+  /* USER CODE BEGIN EXTI1_IRQn 1 */
+
+  /* USER CODE END EXTI1_IRQn 1 */
+}
+
+/**
+* @brief This function handles EXTI line2 interrupt.
+*/
+void EXTI2_IRQHandler(void)
+{
+  /* USER CODE BEGIN EXTI2_IRQn 0 */
+	uint8_t IRQ_Flags;
+	HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_14);
+	RFM95_Reg_Read(RFM95_REG_12_IRQ_FLAGS, &IRQ_Flags, 1);				//Check which flag caused the interupt
+
+	if (IRQ_Flags&RFM95_RX_DONE && IRQ_Flags&RFM95_VALID_HEADER){
+
+		uint8_t rxbase = 0;												//Set FifoPtrAddr to FifoRxCurrentAddr
+		RFM95_Reg_Read(RFM95_REG_10_FIFO_RX_CURRENT_ADDR,&rxbase,1);
+		RFM95_Reg_Write(RFM95_REG_0D_FIFO_ADDR_PTR , &rxbase, 1);
+
+		uint8_t len =0;													//How many bits of data have we received
+		RFM95_Reg_Read(RFM95_REG_22_PAYLOAD_LENGTH,&len,1);
+
+		uint8_t *buf = (uint8_t*) malloc(len);							//Make a buffer to stor the data
+		RFM95_Reg_Read(RFM95_REG_00_FIFO, buf, len);
+
+		burstSerial((char*)buf,len);									//Send the data to the serial port
+		free(buf);														//Free the buffer
+
+		char serial[40];												//Reply to the message
+		sprintf(serial, "Hello back to you :-)");
+		RFM95_LoRa_Test_Send((uint8_t*)&serial,strlen(serial));
+
+		uint8_t IRQ_Flags=0xFF;											//clear flags on LoRa Radio
+		RFM95_Reg_Write(RFM95_REG_12_IRQ_FLAGS , &IRQ_Flags, 1);
+		RFM95_Reg_Write(RFM95_REG_12_IRQ_FLAGS , &IRQ_Flags, 1);
+
+		RFM95_Set_Mode(RFM95_LONG_RANGE_MODE|RFM95_MODE_RXCONTINUOUS);	//Enter RX mode
+	}
+
+  /* USER CODE END EXTI2_IRQn 0 */
+  HAL_GPIO_EXTI_IRQHandler(GPIO_PIN_2);
+  /* USER CODE BEGIN EXTI2_IRQn 1 */
+
+  /* USER CODE END EXTI2_IRQn 1 */
+}
 
 /* USER CODE BEGIN 1 */
 
