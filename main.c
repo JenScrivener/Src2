@@ -110,9 +110,29 @@ int main(void)
   MX_SPI2_Init();
   /* USER CODE BEGIN 2 */
 
-  char serial[40] = "Hello back to you :P";												//Reply to the message
+  HAL_NVIC_SetPriority(USART1_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(USART1_IRQn);
+  HAL_NVIC_SetPriority(USART2_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(USART2_IRQn);
+
+  USART1->CR1|=UART_IT_RXNE;
+  USART2->CR1|=UART_IT_RXNE;
+
+  char setup[60] ="$PMTK314,0,0,0,5,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0*2D";
+
+  for(int x=0;x< strlen(setup);x++){
+	USART1->DR=setup[x];
+	while( !(USART1->SR & UART_FLAG_TXE) );
+  }
+  USART1->DR=13;
+  while( !(USART1->SR & UART_FLAG_TXE) );
+  USART1->DR=10;
+  while( !(USART1->SR & UART_FLAG_TXE) );
+  USART1->DR=10; //The last character is corrupted unless you do the proper wait. Instead of doing the proper wait I added an extra character
+  while( !(USART1->SR & UART_FLAG_TXE) );
+
   RFM95_LoRa_Init(915.25, 30, RFM95_CODING_RATE_4_8, RFM95_SPREADING_FACTOR_4096CPS, RFM95_BW_500KHZ, 15);
-//  RFM95_Set_Mode(RFM95_LONG_RANGE_MODE|RFM95_MODE_RXCONTINUOUS);
+  RFM95_Set_Mode(RFM95_LONG_RANGE_MODE|RFM95_MODE_RXCONTINUOUS);
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -120,9 +140,9 @@ int main(void)
   while (1)
   {
 
-      RFM95_LoRa_Test_Send((uint8_t*)&serial,strlen(serial));
-	  HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_12);
-	  HAL_Delay(5000);
+//	  RFM95_LoRa_Test_Send((uint8_t*)&serial,strlen(serial));
+//	  HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_12);
+//	  HAL_Delay(5000);
 
   /* USER CODE END WHILE */
 
