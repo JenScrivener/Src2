@@ -16,6 +16,22 @@
 #include <math.h>
 #include "main.h"
 
+struct L2Header{
+
+	uint8_t CHECK:3;
+	uint8_t ID:3;
+	uint8_t TTL:2;
+	uint8_t SRC;
+	uint8_t DST;
+
+};
+
+volatile uint8_t ACK_TRUE;
+volatile uint8_t WAIT;
+struct L2Header L2HEADER;
+
+//functions
+
 void RFM95_Reg_Write(uint8_t Reg, uint8_t* Data, uint8_t Len);		//Write len bytes of data to reg
 void RFM95_Reg_Read(uint8_t Reg, uint8_t* Data, uint8_t Len);		//Read len bytes of data from reg
 
@@ -47,6 +63,9 @@ uint8_t RFM95_Get_Output_Power(void);
 void RFM95_Set_Hop_Period(uint8_t HP);
 uint8_t RFM95_Get_Hop_Period(void);
 
+void RFM95_Set_CRC(uint8_t SET);
+uint8_t RFM95_Get_CRC(void);
+
 void RFM95_DIO_Map(uint8_t DIO, uint8_t Map);
 uint8_t RFM95_Get_DIO_Map(uint8_t DIO);
 
@@ -54,6 +73,22 @@ void RFM95_LoRa_Init(double Freq, uint8_t PayloadLength, uint8_t CodingRate, uin
 
 void Hop(void);
 void RFM95_LoRa_Test_Send(uint8_t *Data, uint8_t Len);
+
+void Layer2_Send(uint8_t *Data, uint8_t Len);
+void LoRa_Send(uint8_t *Data);
+uint8_t Check_CRC(uint8_t *buf);
+
+void Send_ACK(uint8_t address);
+uint8_t Get_DST(void);
+void Wait(void);
+
+
+//unique address for this node
+#define ADDRESS  										0xAB
+//global address for all nodes
+#define GLBADD  										0x00
+//used as the source address in acknowledgments
+#define ACK  											0xA5
 
 //Register addresses from table 85 Semtech (HopeRF doesn't have an RX current 0x10)
 #define RFM95_REG_00_FIFO                                0x00

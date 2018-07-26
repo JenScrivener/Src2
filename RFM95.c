@@ -7,9 +7,6 @@
 
 #include "RFM95.h"
 
-int timer=0;
-uint8_t ADDRESS=0x01;
-
 void RFM95_Reg_Write(uint8_t Reg, uint8_t* Data, uint8_t Len){		//Write len bytes of data to reg
 
 	Reg |= RFM95_WRITE;												//Set first bit to write
@@ -215,6 +212,27 @@ uint8_t RFM95_Get_Hop_Period(void){
 	return(HP);
 }
 
+void RFM95_Set_CRC(uint8_t SET){
+
+	uint8_t temp=0;
+	RFM95_Reg_Read(RFM95_REG_1E_MODEM_CONFIG2, &temp, 1);			//current value of the registor
+
+	SET=SET<<2;
+	SET&=RFM95_PAYLOAD_CRC_ON;
+	temp&=!RFM95_PAYLOAD_CRC_ON;									//clear the current CRC
+	SET|=temp;														//set the new CRC
+	RFM95_Reg_Write(RFM95_REG_1E_MODEM_CONFIG2, &SET, 1);
+}
+
+uint8_t RFM95_Get_CRC(void){
+
+	uint8_t SET=0;
+	RFM95_Reg_Read(RFM95_REG_1E_MODEM_CONFIG2, &SET, 1);
+	SET&=RFM95_PAYLOAD_CRC_ON;
+	SET=SET>>2;
+	return(SET);
+}
+
 void RFM95_DIO_MapReg1(uint8_t DIO, uint8_t Map){
 	uint8_t map =0;
 
@@ -295,7 +313,6 @@ void RFM95_LoRa_Init(double Freq, uint8_t PayloadLength, uint8_t CodingRate, uin
 	RFM95_Reg_Write(RFM95_REG_1D_MODEM_CONFIG1, &mode, 1);
 
 	RFM95_DIO_MapReg1(RFM95_DIO0,3);
-//	RFM95_DIO_MapReg1(RFM95_DIO3,1);
 	RFM95_Set_Hop_Period(3);
 
 }
@@ -358,4 +375,114 @@ void RFM95_LoRa_Test_Send(uint8_t *Data, uint8_t Len){
 	}
 
 	Clear_Flags2();
+}
+
+/* Sends 5 bytes of data with a 3 byte header
+ * Header format is,
+ * Destination address (1 byte)
+ * Source address (1 byte)
+ * CRC (3 bit) ID (3 bit) TTL (2 bit)
+ *
+ *
+ */
+void Layer2_Send(uint8_t *Data, uint8_t Len){
+
+	uint8_t packets;
+
+	packets=Len/5+((Len%5)!=0);
+
+	L2HEADER.DST=Get_DST();
+	L2HEADER.SRC=ADDRESS;
+	L2HEADER.TTL=3;
+
+	for(int i=0;i<packets;i++){
+
+		L2HEADER.ID=i;
+		L2HEADER.CHECK=Check_CRC(Data);
+
+		WAIT=1;
+		ACK_TRUE=0;
+
+		while((L2HEADER.TTL>=0)&WAIT){
+			if(ACK_TRUE){
+				ACK_TRUE=0;
+				WAIT=0;
+				L2HEADER.TTL=3;
+			}
+			else if (L2HEADER.TTL>0){
+				LoRa_Send(Data);
+				L2HEADER.TTL--;
+				Wait();
+			}
+			else{
+				i=packets;
+			}
+		}
+		Data=Data+5;
+	}
+}
+
+void LoRa_Send(uint8_t *Data){
+
+	uint8_t len =8;
+	uint8_t header[8];
+
+	header[0]=L2HEADER.DST;
+	header[1]=L2HEADER.SRC;
+	header[2]= (L2HEADER.TTL) | (L2HEADER.ID <<3) | (L2HEADER.TTL<< 6);
+	for(int j=0;j<5;j++){
+		header[j+3]=*Data;
+		Data++;
+	}
+
+	RFM95_Set_Mode(RFM95_LONG_RANGE_MODE|RFM95_MODE_STDBY);			//Enter stand by mode
+	RFM95_Set_Freq(915.25);
+	uint8_t txbase = 0;												//Set FifoPtrAddr to FifoTxPtrBase
+	RFM95_Reg_Read(RFM95_REG_0E_FIFO_TX_BASE_ADDR,&txbase,1);
+	RFM95_Reg_Write(RFM95_REG_0D_FIFO_ADDR_PTR , &txbase, 1);
+
+	RFM95_Reg_Write(RFM95_REG_22_PAYLOAD_LENGTH, &len, 1);			//Set the payload length
+
+	RFM95_Reg_Write(RFM95_REG_00_FIFO , header, len);				//Write data to FIFO
+
+	RFM95_Set_Mode(RFM95_LONG_RANGE_MODE|RFM95_MODE_TX);			//Enter Transmit mode
+
+}
+
+uint8_t Check_CRC(uint8_t *buf){
+
+	uint8_t temp=0;
+
+	for(int x=0;x<5;x++){
+		for(int y=0;y<8;y++){
+			if(*buf & 0x01){
+				temp++;
+			}
+			*buf=*buf>1;
+		}
+		buf++;
+	}
+	temp=temp%8;
+	return(temp);
+}
+
+void Send_ACK(uint8_t address){
+
+	L2HEADER.DST=Get_DST();
+	L2HEADER.SRC=ACK;
+	L2HEADER.TTL=3;
+}
+
+uint8_t Get_DST(void){
+
+return(0xAB);
+}
+
+void Wait(void){
+	int x=0;
+	while((x<20)&(!ACK_TRUE)){
+		HAL_Delay(100);
+		x++;
+	}
+	WAIT=1;
 }
