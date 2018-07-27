@@ -7,6 +7,9 @@
 
 #include "RFM95.h"
 
+int CRC_Good=0;
+int CRC_Bad=0;
+
 void RFM95_Reg_Write(uint8_t Reg, uint8_t* Data, uint8_t Len){		//Write len bytes of data to reg
 
 	Reg |= RFM95_WRITE;												//Set first bit to write
@@ -436,7 +439,7 @@ void LoRa_Send(uint8_t *Data){
 
 	header[0]=L2HEADER.DST;
 	header[1]=L2HEADER.SRC;
-	header[2]= (L2HEADER.TTL) | (L2HEADER.ID <<3) | (L2HEADER.TTL<< 6);
+	header[2]= (L2HEADER.TTL) | (L2HEADER.ID <<2) | (L2HEADER.CHECK<< 5);
 	for(int j=0;j<5;j++){
 		header[j+3]=*Data;
 		Data++;
@@ -458,19 +461,21 @@ void LoRa_Send(uint8_t *Data){
 
 uint8_t Check_CRC(uint8_t *buf){
 
-	uint8_t temp=0;
+	int temp1=0;
+	uint8_t temp2=*buf;
 
 	for(int x=0;x<5;x++){
 		for(int y=0;y<8;y++){
-			if(*buf & 0x01){
-				temp++;
+			if(temp2 & 0x01){
+				temp1++;
 			}
-			*buf=*buf>1;
+			temp2=temp2>>1;
 		}
 		buf++;
+		temp2=*buf;
 	}
-	temp=temp%8;
-	return(temp);
+	temp1=temp1%8;
+	return(temp1);
 }
 
 void Send_ACK(uint8_t address){
@@ -560,13 +565,19 @@ void Test_LoRa_RX(void){
 	header.CHECK = (*buf>>5) & 0b111;
 	buf++;
 
-	if(((header.DST==ADDRESS) | (header.DST==GLBADD))){
-
-		char text[21]="Yeah boy it's for me";
-		burstSerial(&text,strlen(text));
+	if(header.CHECK==Check_CRC(buf)){
+		CRC_Good++;
+	}
+	else{
+		CRC_Bad++;
 	}
 
-	burstSerial((char*)buf,len-3);									//Send the data to the serial port
+	char text[40];
+	sprintf(text,"Good/Bad = %d/%d %d",CRC_Good,CRC_Bad,header.CHECK);
+	burstSerial(&text[0],strlen(text));
+
+	burstSerial((char*)buf,len-3);
+
 	buf-=3;
 	free(buf);														//Free the buffer
 

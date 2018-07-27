@@ -210,13 +210,20 @@ void RTC_Alarm_IRQHandler(void)
   HAL_RTC_AlarmIRQHandler(&hrtc);
   /* USER CODE BEGIN RTC_Alarm_IRQn 1 */
 
-  char test[5]="Yu Yu";
-  L2HEADER.DST=Get_DST();
-  L2HEADER.SRC=ADDRESS;
-  L2HEADER.CHECK=0b101;
-  L2HEADER.TTL=3;
-  L2HEADER.ID=0;
-//  LoRa_Send((uint8_t*)&test[0]);
+  if(count>=5){
+	  char test[5]="Yu Yu";
+	  L2HEADER.DST=Get_DST();
+	  L2HEADER.SRC=ADDRESS;
+	  L2HEADER.CHECK=Check_CRC((uint8_t*)&test[0]);
+	  L2HEADER.TTL=3;
+	  L2HEADER.ID=0;
+	  LoRa_Send((uint8_t*)&test[0]);
+	  count=0;
+  }
+  else{
+	  count++;
+  }
+
 
   /* USER CODE END RTC_Alarm_IRQn 1 */
 }
