@@ -82,6 +82,9 @@ void Send_ACK(uint8_t address);
 uint8_t Get_DST(void);
 void Wait(void);
 
+void LoRa_RX(void);
+void Test_LoRa_RX(void);
+
 
 //unique address for this node
 #define ADDRESS  										0xAB

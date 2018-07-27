@@ -9,7 +9,6 @@
 
 uint8_t SPI_Send(uint8_t Data){
 
-	HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_14);
 	SPI2->CR1|= 1000000;					// enable SPI
 	SPI2->DR = Data; 						// write data to be transmitted to the SPI data register
 	while( !(SPI2->SR & SPI_FLAG_TXE) ); 	// wait until transmit complete

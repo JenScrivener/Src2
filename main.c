@@ -131,8 +131,9 @@ int main(void)
   USART1->DR=10; //The last character is corrupted unless you do the proper wait. Instead of doing the proper wait I added an extra character
   while( !(USART1->SR & UART_FLAG_TXE) );
 
-  RFM95_LoRa_Init(915.25, 30, RFM95_CODING_RATE_4_8, RFM95_SPREADING_FACTOR_4096CPS, RFM95_BW_500KHZ, 15);
+  RFM95_LoRa_Init(915.25, 8, RFM95_CODING_RATE_4_8, RFM95_SPREADING_FACTOR_4096CPS, RFM95_BW_500KHZ, 15);
   RFM95_Set_Mode(RFM95_LONG_RANGE_MODE|RFM95_MODE_RXCONTINUOUS);
+
 
   /* USER CODE END 2 */
 
@@ -141,9 +142,6 @@ int main(void)
   while (1)
   {
 
-//	  RFM95_LoRa_Test_Send((uint8_t*)&serial,strlen(serial));
-//	  HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_12);
-//	  HAL_Delay(5000);
 
   /* USER CODE END WHILE */
 
@@ -201,7 +199,7 @@ void SystemClock_Config(void)
   }
 
   PeriphClkInitStruct.PeriphClockSelection = RCC_PERIPHCLK_RTC;
-  PeriphClkInitStruct.RTCClockSelection = RCC_RTCCLKSOURCE_HSE_DIV8;
+  PeriphClkInitStruct.RTCClockSelection = RCC_RTCCLKSOURCE_HSE_DIV25;
   if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInitStruct) != HAL_OK)
   {
     _Error_Handler(__FILE__, __LINE__);
@@ -240,7 +238,7 @@ static void MX_RTC_Init(void)
   hrtc.Instance = RTC;
   hrtc.Init.HourFormat = RTC_HOURFORMAT_24;
   hrtc.Init.AsynchPrediv = 127;
-  hrtc.Init.SynchPrediv = 255;
+  hrtc.Init.SynchPrediv = 2499;
   hrtc.Init.OutPut = RTC_OUTPUT_DISABLE;
   hrtc.Init.OutPutPolarity = RTC_OUTPUT_POLARITY_HIGH;
   hrtc.Init.OutPutType = RTC_OUTPUT_TYPE_OPENDRAIN;
@@ -284,12 +282,11 @@ static void MX_RTC_Init(void)
     */
   sAlarm.AlarmTime.Hours = 0x0;
   sAlarm.AlarmTime.Minutes = 0x0;
-  sAlarm.AlarmTime.Seconds = 0x30;
+  sAlarm.AlarmTime.Seconds = 0x0;
   sAlarm.AlarmTime.SubSeconds = 0x0;
   sAlarm.AlarmTime.DayLightSaving = RTC_DAYLIGHTSAVING_NONE;
   sAlarm.AlarmTime.StoreOperation = RTC_STOREOPERATION_RESET;
-  sAlarm.AlarmMask = RTC_ALARMMASK_DATEWEEKDAY|RTC_ALARMMASK_HOURS
-                              |RTC_ALARMMASK_SECONDS;
+  sAlarm.AlarmMask = RTC_ALARMMASK_ALL;
   sAlarm.AlarmSubSecondMask = RTC_ALARMSUBSECONDMASK_ALL;
   sAlarm.AlarmDateWeekDaySel = RTC_ALARMDATEWEEKDAYSEL_WEEKDAY;
   sAlarm.AlarmDateWeekDay = RTC_WEEKDAY_MONDAY;

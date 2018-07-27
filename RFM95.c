@@ -117,6 +117,12 @@ uint8_t RFM95_Get_Payload_Length(void){
 	return(PLL);
 }
 
+uint8_t RFM95_Get_RX_NBYTES(void){
+	uint8_t PLL=0;
+	RFM95_Reg_Read(RFM95_REG_13_RX_NB_BYTES, &PLL, 1);
+	return(PLL);
+}
+
 void RFM95_Set_Coding_Rate(uint8_t CR){
 
 	uint8_t temp=0;
@@ -416,9 +422,10 @@ void Layer2_Send(uint8_t *Data, uint8_t Len){
 			}
 			else{
 				i=packets;
+				WAIT=0;
 			}
 		}
-		Data=Data+5;
+//		Data=Data+5;
 	}
 }
 
@@ -443,7 +450,7 @@ void LoRa_Send(uint8_t *Data){
 
 	RFM95_Reg_Write(RFM95_REG_22_PAYLOAD_LENGTH, &len, 1);			//Set the payload length
 
-	RFM95_Reg_Write(RFM95_REG_00_FIFO , header, len);				//Write data to FIFO
+	RFM95_Reg_Write(RFM95_REG_00_FIFO , &header[0], len);			//Write data to FIFO
 
 	RFM95_Set_Mode(RFM95_LONG_RANGE_MODE|RFM95_MODE_TX);			//Enter Transmit mode
 
@@ -481,8 +488,92 @@ return(0xAB);
 void Wait(void){
 	int x=0;
 	while((x<20)&(!ACK_TRUE)){
-		HAL_Delay(100);
+		for(int i=0;i<10000;i++){
+
+		}
 		x++;
 	}
 	WAIT=1;
+}
+
+void LoRa_RX(void){
+	uint8_t rxbase = 0;												//Set FifoPtrAddr to FifoRxCurrentAddr
+	RFM95_Reg_Read(RFM95_REG_10_FIFO_RX_CURRENT_ADDR,&rxbase,1);
+	RFM95_Reg_Write(RFM95_REG_0D_FIFO_ADDR_PTR , &rxbase, 1);
+
+	uint8_t len =0;													//How many bits of data have we received
+	RFM95_Reg_Read(RFM95_REG_22_PAYLOAD_LENGTH,&len,1);
+
+	uint8_t *buf = (uint8_t*) malloc(len);							//Make a buffer to stor the data
+	RFM95_Reg_Read(RFM95_REG_00_FIFO, buf, len);
+
+	struct L2Header header;
+	header.DST = *buf;
+	buf++;
+	header.SRC = *buf;
+	buf++;
+	header.TTL = *buf & 0b11;
+	header.ID = (*buf>>2) & 0b111;
+	header.CHECK = (*buf>>5) & 0b111;
+	buf++;
+
+	if((header.CHECK==Check_CRC(buf)) & ((header.DST==ADDRESS) | (header.DST==GLBADD))){
+
+		if(header.SRC==ADDRESS){
+			Send_ACK(header.SRC);
+			burstSerial((char*)buf,len-3);							//Send the data to the serial port
+
+		}
+		else if (header.SRC==ACK){
+			ACK_TRUE=1;
+		}
+	}
+
+	free(buf);														//Free the buffer
+
+	uint8_t IRQ_Flags=0xFF;											//clear flags on LoRa Radio
+	RFM95_Reg_Write(RFM95_REG_12_IRQ_FLAGS , &IRQ_Flags, 1);
+	RFM95_Reg_Write(RFM95_REG_12_IRQ_FLAGS , &IRQ_Flags, 1);
+
+	RFM95_Set_Mode(RFM95_LONG_RANGE_MODE|RFM95_MODE_RXCONTINUOUS);	//Enter RX mode
+
+}
+
+void Test_LoRa_RX(void){
+	uint8_t rxbase = 0;												//Set FifoPtrAddr to FifoRxCurrentAddr
+	RFM95_Reg_Read(RFM95_REG_10_FIFO_RX_CURRENT_ADDR,&rxbase,1);
+	RFM95_Reg_Write(RFM95_REG_0D_FIFO_ADDR_PTR , &rxbase, 1);
+
+	uint8_t len =0;													//How many bits of data have we received
+	RFM95_Reg_Read(RFM95_REG_13_RX_NB_BYTES,&len,1);
+
+	uint8_t *buf = (uint8_t*) malloc(len);							//Make a buffer to stor the data
+	RFM95_Reg_Read(RFM95_REG_00_FIFO, buf, len);
+
+	struct L2Header header;
+	header.DST = *buf;
+	buf++;
+	header.SRC = *buf;
+	buf++;
+	header.TTL = *buf & 0b11;
+	header.ID = (*buf>>2) & 0b111;
+	header.CHECK = (*buf>>5) & 0b111;
+	buf++;
+
+	if(((header.DST==ADDRESS) | (header.DST==GLBADD))){
+
+		char text[21]="Yeah boy it's for me";
+		burstSerial(&text,strlen(text));
+	}
+
+	burstSerial((char*)buf,len-3);									//Send the data to the serial port
+	buf-=3;
+	free(buf);														//Free the buffer
+
+	uint8_t IRQ_Flags=0xFF;											//clear flags on LoRa Radio
+	RFM95_Reg_Write(RFM95_REG_12_IRQ_FLAGS , &IRQ_Flags, 1);
+	RFM95_Reg_Write(RFM95_REG_12_IRQ_FLAGS , &IRQ_Flags, 1);
+
+	RFM95_Set_Mode(RFM95_LONG_RANGE_MODE|RFM95_MODE_RXCONTINUOUS);	//Enter RX mode
+
 }
