@@ -50,6 +50,8 @@ RTC_HandleTypeDef hrtc;
 
 SPI_HandleTypeDef hspi2;
 
+TIM_HandleTypeDef htim2;
+
 UART_HandleTypeDef huart1;
 UART_HandleTypeDef huart2;
 
@@ -65,6 +67,7 @@ static void MX_USART1_UART_Init(void);
 static void MX_USART2_UART_Init(void);
 static void MX_SPI2_Init(void);
 static void MX_RTC_Init(void);
+static void MX_TIM2_Init(void);
 
 /* USER CODE BEGIN PFP */
 /* Private function prototypes -----------------------------------------------*/
@@ -108,6 +111,7 @@ int main(void)
   MX_USART2_UART_Init();
   MX_SPI2_Init();
   MX_RTC_Init();
+  MX_TIM2_Init();
   /* USER CODE BEGIN 2 */
 
   HAL_NVIC_SetPriority(USART1_IRQn, 0, 0);
@@ -131,10 +135,12 @@ int main(void)
   USART1->DR=10; //The last character is corrupted unless you do the proper wait. Instead of doing the proper wait I added an extra character
   while( !(USART1->SR & UART_FLAG_TXE) );
 
-  RFM95_LoRa_Init(915.25, 8, RFM95_CODING_RATE_4_8, RFM95_SPREADING_FACTOR_4096CPS, RFM95_BW_500KHZ, 15);
+  RFM95_LoRa_Init(915.25, (DATA_SIZE+3), RFM95_CODING_RATE_4_8, RFM95_SPREADING_FACTOR_4096CPS, RFM95_BW_500KHZ, 15);
   RFM95_Set_Mode(RFM95_LONG_RANGE_MODE|RFM95_MODE_RXCONTINUOUS);
 
+  TIM2->CR1|=0x0008;
 
+//  char Data[40]="aBg34";
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -325,6 +331,38 @@ static void MX_SPI2_Init(void)
 
 }
 
+/* TIM2 init function */
+static void MX_TIM2_Init(void)
+{
+
+  TIM_ClockConfigTypeDef sClockSourceConfig;
+  TIM_MasterConfigTypeDef sMasterConfig;
+
+  htim2.Instance = TIM2;
+  htim2.Init.Prescaler = 50000;
+  htim2.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim2.Init.Period = 2000;
+  htim2.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  if (HAL_TIM_Base_Init(&htim2) != HAL_OK)
+  {
+    _Error_Handler(__FILE__, __LINE__);
+  }
+
+  sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
+  if (HAL_TIM_ConfigClockSource(&htim2, &sClockSourceConfig) != HAL_OK)
+  {
+    _Error_Handler(__FILE__, __LINE__);
+  }
+
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
+  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+  if (HAL_TIMEx_MasterConfigSynchronization(&htim2, &sMasterConfig) != HAL_OK)
+  {
+    _Error_Handler(__FILE__, __LINE__);
+  }
+
+}
+
 /* USART1 init function */
 static void MX_USART1_UART_Init(void)
 {
@@ -432,6 +470,17 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
+
+void timing(int set){
+	if(set){
+		TIM2->CNT=0;
+		HAL_TIM_Base_Start_IT(&htim2);
+	}
+	else{
+		TIM2->CNT=0;
+		HAL_TIM_Base_Stop_IT(&htim2);
+	}
+}
 
 /* USER CODE END 4 */
 

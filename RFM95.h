@@ -16,6 +16,8 @@
 #include <math.h>
 #include "main.h"
 
+
+
 struct L2Header{
 
 	uint8_t CHECK:3;
@@ -26,9 +28,11 @@ struct L2Header{
 
 };
 
-volatile uint8_t ACK_TRUE;
-volatile uint8_t WAIT;
+volatile uint8_t RXTOT;
+volatile uint8_t TMOUT;
 struct L2Header L2HEADER;
+
+
 
 //functions
 
@@ -78,12 +82,14 @@ void Layer2_Send(uint8_t *Data, uint8_t Len);
 void LoRa_Send(uint8_t *Data);
 uint8_t Check_CRC(uint8_t *buf);
 
-void Send_ACK(uint8_t address);
+void Send_ACK(uint8_t Address, uint8_t ID);
 uint8_t Get_DST(void);
 void Wait(void);
 
 void LoRa_RX(void);
 void Test_LoRa_RX(void);
+void Ping_Test(void);
+void Ping_Test2(void);
 
 
 //unique address for this node
@@ -92,6 +98,8 @@ void Test_LoRa_RX(void);
 #define GLBADD  										0x00
 //used as the source address in acknowledgments
 #define ACK  											0xA5
+//number of bytes of data in layer 2 packet
+#define DATA_SIZE										0x05
 
 //Register addresses from table 85 Semtech (HopeRF doesn't have an RX current 0x10)
 #define RFM95_REG_00_FIFO                                0x00

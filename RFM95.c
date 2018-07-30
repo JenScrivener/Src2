@@ -10,6 +10,11 @@
 int CRC_Good=0;
 int CRC_Bad=0;
 
+uint8_t *DATA;
+uint8_t PACKETS=0;
+uint8_t LEN=0;
+uint8_t RXNEXT=0;
+
 void RFM95_Reg_Write(uint8_t Reg, uint8_t* Data, uint8_t Len){		//Write len bytes of data to reg
 
 	Reg |= RFM95_WRITE;												//Set first bit to write
@@ -386,61 +391,15 @@ void RFM95_LoRa_Test_Send(uint8_t *Data, uint8_t Len){
 	Clear_Flags2();
 }
 
-/* Sends 5 bytes of data with a 3 byte header
- * Header format is,
- * Destination address (1 byte)
- * Source address (1 byte)
- * CRC (3 bit) ID (3 bit) TTL (2 bit)
- *
- *
- */
-void Layer2_Send(uint8_t *Data, uint8_t Len){
-
-	uint8_t packets;
-
-	packets=Len/5+((Len%5)!=0);
-
-	L2HEADER.DST=Get_DST();
-	L2HEADER.SRC=ADDRESS;
-	L2HEADER.TTL=3;
-
-	for(int i=0;i<packets;i++){
-
-		L2HEADER.ID=i;
-		L2HEADER.CHECK=Check_CRC(Data);
-
-		WAIT=1;
-		ACK_TRUE=0;
-
-		while((L2HEADER.TTL>=0)&WAIT){
-			if(ACK_TRUE){
-				ACK_TRUE=0;
-				WAIT=0;
-				L2HEADER.TTL=3;
-			}
-			else if (L2HEADER.TTL>0){
-				LoRa_Send(Data);
-				L2HEADER.TTL--;
-				Wait();
-			}
-			else{
-				i=packets;
-				WAIT=0;
-			}
-		}
-//		Data=Data+5;
-	}
-}
-
 void LoRa_Send(uint8_t *Data){
 
-	uint8_t len =8;
-	uint8_t header[8];
+	uint8_t len =3+DATA_SIZE;
+	uint8_t header[len];
 
 	header[0]=L2HEADER.DST;
 	header[1]=L2HEADER.SRC;
 	header[2]= (L2HEADER.TTL) | (L2HEADER.ID <<2) | (L2HEADER.CHECK<< 5);
-	for(int j=0;j<5;j++){
+	for(int j=0;j<DATA_SIZE;j++){
 		header[j+3]=*Data;
 		Data++;
 	}
@@ -464,7 +423,7 @@ uint8_t Check_CRC(uint8_t *buf){
 	int temp1=0;
 	uint8_t temp2=*buf;
 
-	for(int x=0;x<5;x++){
+	for(int x=0;x<DATA_SIZE;x++){
 		for(int y=0;y<8;y++){
 			if(temp2 & 0x01){
 				temp1++;
@@ -478,11 +437,15 @@ uint8_t Check_CRC(uint8_t *buf){
 	return(temp1);
 }
 
-void Send_ACK(uint8_t address){
+void Send_ACK(uint8_t Address, uint8_t ID){
 
-	L2HEADER.DST=Get_DST();
+	char blank[DATA_SIZE];
+	blank[0]=(char)ID;
+	L2HEADER.DST=Address;
 	L2HEADER.SRC=ACK;
 	L2HEADER.TTL=3;
+	L2HEADER.CHECK=Check_CRC((uint8_t*)&blank[0]);
+	LoRa_Send((uint8_t*)&blank[0]);
 }
 
 uint8_t Get_DST(void){
@@ -490,16 +453,6 @@ uint8_t Get_DST(void){
 return(0xAB);
 }
 
-void Wait(void){
-	int x=0;
-	while((x<20)&(!ACK_TRUE)){
-		for(int i=0;i<10000;i++){
-
-		}
-		x++;
-	}
-	WAIT=1;
-}
 
 void LoRa_RX(void){
 	uint8_t rxbase = 0;												//Set FifoPtrAddr to FifoRxCurrentAddr
@@ -524,16 +477,31 @@ void LoRa_RX(void){
 
 	if((header.CHECK==Check_CRC(buf)) & ((header.DST==ADDRESS) | (header.DST==GLBADD))){
 
-		if(header.SRC==ADDRESS){
-			Send_ACK(header.SRC);
-			burstSerial((char*)buf,len-3);							//Send the data to the serial port
-
+		if (header.SRC==ACK){
+			HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_15);
+			timing(0);
+			if(PACKETS>1){
+				DATA+=DATA_SIZE;
+				PACKETS--;
+				L2HEADER.TTL=3;
+				Layer2_Send(DATA,1);
+			}
+			else if(PACKETS==1){
+				PACKETS--;
+				DATA=DATA-LEN;
+				free(DATA);
+			}
 		}
-		else if (header.SRC==ACK){
-			ACK_TRUE=1;
+		else if(header.DST==ADDRESS){
+			char serial[40];
+			sprintf(serial,"TTL=%d",header.TTL);
+			burstSerial(&serial[0],strlen(serial));
+			Send_ACK(header.SRC,header.ID);
+			burstSerial((char*)buf,len-3);							//Send the data to the serial port
 		}
 	}
 
+	buf-=3;
 	free(buf);														//Free the buffer
 
 	uint8_t IRQ_Flags=0xFF;											//clear flags on LoRa Radio
@@ -586,5 +554,50 @@ void Test_LoRa_RX(void){
 	RFM95_Reg_Write(RFM95_REG_12_IRQ_FLAGS , &IRQ_Flags, 1);
 
 	RFM95_Set_Mode(RFM95_LONG_RANGE_MODE|RFM95_MODE_RXCONTINUOUS);	//Enter RX mode
+
+}
+
+void Ping_Test(void){
+	char test[DATA_SIZE];
+	sprintf(test,"%061d",123456);
+	L2HEADER.DST=Get_DST();
+	L2HEADER.SRC=ADDRESS;
+	L2HEADER.CHECK=Check_CRC((uint8_t*)&test[0]);
+	L2HEADER.TTL=3;
+	L2HEADER.ID=0;
+	LoRa_Send((uint8_t*)&test[0]);
+}
+
+void Ping_Test2(void){
+	char test[20]="Hello World!";
+	PACKETS=0;
+	Layer2_Send((uint8_t*)&test[0],strlen(test));
+}
+
+void Layer2_Send(uint8_t *Data, uint8_t Len){
+
+	//New Message
+	if(PACKETS==0){
+		PACKETS=Len/DATA_SIZE+((Len%DATA_SIZE)!=0);
+		LEN=PACKETS*DATA_SIZE;
+		DATA=(uint8_t*)malloc(LEN);
+		memset(DATA, 0, LEN);
+		LEN-=DATA_SIZE;
+		L2HEADER.TTL=3;
+		for(int x=0;x<Len;x++){
+			*DATA=*Data;
+			DATA++;
+			Data++;
+		}
+		DATA=DATA-Len;
+	}
+
+	L2HEADER.DST=Get_DST();
+	L2HEADER.SRC=ADDRESS;
+	L2HEADER.ID=PACKETS;
+	L2HEADER.CHECK=Check_CRC(DATA);
+	TIM2->CNT=0;
+	timing(1);
+	LoRa_Send(DATA);
 
 }
