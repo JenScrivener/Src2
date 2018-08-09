@@ -38,6 +38,7 @@ struct L2Header{
 	uint8_t TTL:2;
 	uint8_t SRC;
 	uint8_t DST;
+	uint8_t OLD_ID;
 
 };
 
@@ -121,6 +122,7 @@ void Ping_Test2(void);
 void Power_Test(void);
 void L3_RX(void);
 void Set_L3Data(uint8_t *Data);
+void Clean(struct Data_Node Node);
 
 //Register addresses from table 85 Semtech (HopeRF doesn't have an RX current 0x10)
 #define RFM95_REG_00_FIFO                                0x00

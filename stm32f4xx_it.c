@@ -110,18 +110,8 @@ void EXTI0_IRQHandler(void)
 {
   /* USER CODE BEGIN EXTI0_IRQn 0 */
 
-	char Data[130]="abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz";
-	L2HEADER.CHECK=Check_CRC((uint8_t*)&Data);
-	LoRa_Send((uint8_t*)&Data);
-
-	if(ping){
-		ping=0;
-	}
-	else{
-		ping=1;
-	}
-
-	HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_12);
+	char data[130]="ABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890";
+	Layer2_Send((uint8_t*)&data,strlen(data));
 
   /* USER CODE END EXTI0_IRQn 0 */
   HAL_GPIO_EXTI_IRQHandler(GPIO_PIN_0);
@@ -162,21 +152,21 @@ void EXTI2_IRQHandler(void)
 
 	if (IRQ_Flags&RFM95_RX_DONE){
 		HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_14);
-		Test_LoRa_RX();
-//		LoRa_RX();
+//		Test_LoRa_RX();
+		LoRa_RX();
 	}
 
 	if(IRQ_Flags&RFM95_TX_DONE){
 		HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_13);
 
-//		RFM95_Set_Mode(RFM95_LONG_RANGE_MODE|RFM95_MODE_RXCONTINUOUS);
+		RFM95_Set_Mode(RFM95_LONG_RANGE_MODE|RFM95_MODE_RXCONTINUOUS);
 
 		uint8_t IRQ_Flags=0xFF;											//clear flags on LoRa Radio
 		RFM95_Reg_Write(RFM95_REG_12_IRQ_FLAGS , &IRQ_Flags, 1);
 		RFM95_Reg_Write(RFM95_REG_12_IRQ_FLAGS , &IRQ_Flags, 1);
 		RFM95_Set_Freq(915.25);											//set frequency ready to receive next transmission
 
-		Power_Test();
+//		Power_Test();
 	}
 
   /* USER CODE END EXTI2_IRQn 1 */
@@ -237,17 +227,6 @@ void RTC_Alarm_IRQHandler(void)
   /* USER CODE END RTC_Alarm_IRQn 0 */
   HAL_RTC_AlarmIRQHandler(&hrtc);
   /* USER CODE BEGIN RTC_Alarm_IRQn 1 */
-
-  if(count>=5){
-  	if(ping){
-// 		Ping_Test();
-//  	Ping_Test2();
-  	}
-  	count=0;
-  }
-  else{
-  	count++;
-  }
 
   /* USER CODE END RTC_Alarm_IRQn 1 */
 }

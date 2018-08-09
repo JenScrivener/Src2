@@ -355,6 +355,8 @@ void RFM95_LoRa_Init(double Freq, uint8_t PayloadLength, uint8_t CodingRate, uin
 	RFM95_DIO_MapReg1(RFM95_DIO0,3);
 	RFM95_Set_Hop_Period(3);
 
+	L2HEADER.OLD_ID=8;
+
 	BASE_DATA.NXT=NULL;
 
 	L3NODE.WEIGHT=255;
@@ -528,17 +530,22 @@ void LoRa_RX(void){
 		}
 		else{
 
+			char serial[40];
+			sprintf(serial, "ID is %d", header.ID);
+			burstSerial(&serial[0],strlen(serial));
+
 			Send_ACK(header.SRC,header.ID);
-			Set_L3Data(buf);
-			if(L2HEADER.ID==0){
+
+			if(header.ID==0){
+				L2HEADER.OLD_ID=8;
+				Set_L3Data(buf);
 				L3_RX();
 			}
 
-			char serial[40];
-			sprintf(serial,"TTL=%d",header.TTL);
-			burstSerial(&serial[0],strlen(serial));
-
-			burstSerial((char*)buf,len-3);							//Send the data to the serial port
+			else if((L2HEADER.OLD_ID==8)|((header.ID%7+1)==L2HEADER.OLD_ID)){
+				L2HEADER.OLD_ID=header.ID;
+				Set_L3Data(buf);
+			}
 		}
 	}
 
@@ -656,21 +663,47 @@ void Layer2_Send(uint8_t *Data, uint8_t Len){
 
 void L3_RX(void){
 
+	struct Data_Node data;
+	data=BASE_DATA;
+	for(int x=0;x<DATA_SIZE;x++){
+		serial(data.DATA[x]);
+	}
+	while(data.NXT->NXT!=NULL){
+		data=*data.NXT;
+		for(int x=0;x<DATA_SIZE;x++){
+			serial(data.DATA[x]);
+		}
+	}
+	serial(13);
+	Clean(BASE_DATA);
 }
+
 void Set_L3Data(uint8_t *Data){
 	for(int x=0;x<DATA_SIZE;x++){
 		L3NODE.DATA->DATA[x]=*Data;
 		Data++;
 	}
-	if(L3NODE.DATA->NXT==NULL){
-		struct Data_Node *next = (struct Data_Node *)malloc(sizeof(struct Data_Node));
-		next->NXT=NULL;
-		L3NODE.DATA=next;
-	}
-	else{
-		L3NODE.DATA=L3NODE.DATA->NXT;
-	}
 
+	struct Data_Node *next = (struct Data_Node *)malloc(sizeof(struct Data_Node));
+	next->NXT=NULL;
+	L3NODE.DATA->NXT=next;
+	L3NODE.DATA=next;
+
+}
+
+void Clean(struct Data_Node Node){
+	struct Data_Node *temp;
+	if(Node.NXT!=NULL){
+		temp=Node.NXT;
+		Node=*Node.NXT;
+		while(temp!=NULL){
+			Node=*Node.NXT;
+			free(temp);
+			temp=Node.NXT;
+		}
+	}
+	BASE_DATA.NXT=NULL;
+	L3NODE.DATA=&BASE_DATA;
 }
 
 void Power_Test(void){
