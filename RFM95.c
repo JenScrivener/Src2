@@ -226,6 +226,32 @@ uint8_t RFM95_Get_Hop_Period(void){
 	return(HP);
 }
 
+int RFM95_Get_RSSI(void){
+
+	int RSSI=0;
+	uint8_t temp=0;
+	RFM95_Reg_Read(RFM95_REG_1B_RSSI_VALUE , &temp, 1);
+	RSSI=temp-164;
+	return(RSSI);
+}
+
+int RFM95_Get_SNR(void){
+
+	int SNR=0;
+	uint8_t temp=0;
+	RFM95_Reg_Read(RFM95_REG_19_PKT_SNR_VALUE , &temp, 1);
+	if(temp&0b10000000){
+		temp--;
+		temp=~temp;
+		SNR=(int)(-1*temp/4);
+	}
+	else{
+		SNR=(int)(temp/4);
+	}
+
+	return(SNR);
+}
+
 void RFM95_Set_CRC(uint8_t SET){
 
 	uint8_t temp=0;
@@ -328,6 +354,14 @@ void RFM95_LoRa_Init(double Freq, uint8_t PayloadLength, uint8_t CodingRate, uin
 
 	RFM95_DIO_MapReg1(RFM95_DIO0,3);
 	RFM95_Set_Hop_Period(3);
+
+	BASE_DATA.NXT=NULL;
+
+	L3NODE.WEIGHT=255;
+	L3NODE.NXT_HOP=0b0111111;
+	L3NODE.FIFO_PTR=0;
+	L3NODE.LAST_RU=0;
+	L3NODE.DATA=&BASE_DATA;
 
 }
 
@@ -475,7 +509,7 @@ void LoRa_RX(void){
 	header.CHECK = (*buf>>5) & 0b111;
 	buf++;
 
-	if((header.CHECK==Check_CRC(buf)) & ((header.DST==ADDRESS) | (header.DST==GLBADD))){
+	if((header.CHECK==Check_CRC(buf)) & ((header.DST==ADDRESS) | (header.DST==BROADCAST)| (header.DST==ACK))){
 
 		if (header.SRC==ACK){
 			HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_15);
@@ -492,11 +526,18 @@ void LoRa_RX(void){
 				free(DATA);
 			}
 		}
-		else if(header.DST==ADDRESS){
+		else{
+
+			Send_ACK(header.SRC,header.ID);
+			Set_L3Data(buf);
+			if(L2HEADER.ID==0){
+				L3_RX();
+			}
+
 			char serial[40];
 			sprintf(serial,"TTL=%d",header.TTL);
 			burstSerial(&serial[0],strlen(serial));
-			Send_ACK(header.SRC,header.ID);
+
 			burstSerial((char*)buf,len-3);							//Send the data to the serial port
 		}
 	}
@@ -542,6 +583,12 @@ void Test_LoRa_RX(void){
 
 	char text[40];
 	sprintf(text,"Good/Bad = %d/%d %d",CRC_Good,CRC_Bad,header.CHECK);
+	burstSerial(&text[0],strlen(text));
+
+	sprintf(text,"RSSI = %d",RFM95_Get_RSSI());
+	burstSerial(&text[0],strlen(text));
+
+	sprintf(text,"SNR = %d",RFM95_Get_SNR());
 	burstSerial(&text[0],strlen(text));
 
 	burstSerial((char*)buf,len-3);
@@ -592,12 +639,43 @@ void Layer2_Send(uint8_t *Data, uint8_t Len){
 		DATA=DATA-Len;
 	}
 
+	if(PACKETS==1){
+		L2HEADER.ID=0;
+	}
+	else{
+		L2HEADER.ID=(PACKETS%7)+1;
+	}
+
 	L2HEADER.DST=Get_DST();
 	L2HEADER.SRC=ADDRESS;
-	L2HEADER.ID=PACKETS;
 	L2HEADER.CHECK=Check_CRC(DATA);
 	TIM2->CNT=0;
 	timing(1);
 	LoRa_Send(DATA);
+}
+
+void L3_RX(void){
+
+}
+void Set_L3Data(uint8_t *Data){
+	for(int x=0;x<DATA_SIZE;x++){
+		L3NODE.DATA->DATA[x]=*Data;
+		Data++;
+	}
+	if(L3NODE.DATA->NXT==NULL){
+		struct Data_Node *next = (struct Data_Node *)malloc(sizeof(struct Data_Node));
+		next->NXT=NULL;
+		L3NODE.DATA=next;
+	}
+	else{
+		L3NODE.DATA=L3NODE.DATA->NXT;
+	}
+
+}
+
+void Power_Test(void){
+	uint8_t txbase=0x80;
+	RFM95_Reg_Write(RFM95_REG_0D_FIFO_ADDR_PTR , &txbase, 1);
+	RFM95_Set_Mode(RFM95_LONG_RANGE_MODE|RFM95_MODE_TX);
 
 }

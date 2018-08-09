@@ -16,7 +16,20 @@
 #include <math.h>
 #include "main.h"
 
+//unique address for this node
+#define ADDRESS  										0xAB
+//global address for all nodes
+#define BROADCAST  										0xFF
+//used as the source address in acknowledgments
+#define ACK  											0x00
+//number of bytes of data in layer 2 packet
+#define DATA_SIZE										13
 
+
+struct Data_Node{
+	uint8_t DATA[DATA_SIZE];
+	struct Data_Node *NXT;
+};
 
 struct L2Header{
 
@@ -28,9 +41,21 @@ struct L2Header{
 
 };
 
+struct L3Node{
+	uint8_t WEIGHT;
+	uint8_t NXT_HOP;
+	uint8_t LAST_RU;
+	uint8_t ADD_FIFO[256];
+	uint8_t FIFO_PTR;
+	struct Data_Node *DATA;
+
+};
+
 volatile uint8_t RXTOT;
 volatile uint8_t TMOUT;
 struct L2Header L2HEADER;
+struct Data_Node BASE_DATA;
+struct L3Node L3NODE;
 
 
 
@@ -67,6 +92,9 @@ uint8_t RFM95_Get_Output_Power(void);
 void RFM95_Set_Hop_Period(uint8_t HP);
 uint8_t RFM95_Get_Hop_Period(void);
 
+int RFM95_Get_RSSI(void);
+int RFM95_Get_SNR(void);
+
 void RFM95_Set_CRC(uint8_t SET);
 uint8_t RFM95_Get_CRC(void);
 
@@ -90,16 +118,9 @@ void LoRa_RX(void);
 void Test_LoRa_RX(void);
 void Ping_Test(void);
 void Ping_Test2(void);
-
-
-//unique address for this node
-#define ADDRESS  										0xAB
-//global address for all nodes
-#define GLBADD  										0x00
-//used as the source address in acknowledgments
-#define ACK  											0xA5
-//number of bytes of data in layer 2 packet
-#define DATA_SIZE										0x05
+void Power_Test(void);
+void L3_RX(void);
+void Set_L3Data(uint8_t *Data);
 
 //Register addresses from table 85 Semtech (HopeRF doesn't have an RX current 0x10)
 #define RFM95_REG_00_FIFO                                0x00
