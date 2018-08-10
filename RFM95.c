@@ -737,16 +737,17 @@ void Test2_L3_RX(uint8_t Source){
 		}
 	}
 
-	uint8_t type = *message;
-	message++;
+	temp=message;
+	uint8_t type = *temp;
+	temp++;
 
 	if(type==TRNSFR){
 		//transfer protocol
 		if(ADDRESS==0x03){
-			burstSerial((char*)message,size);
+			burstSerial((char*)temp,size-1);
 		}
 		else{
-			Test_L3_TX(message,(size-1));
+			Test_L3_TX(temp,(size-1));
 		}
 	}
 	else if(type==RU){
@@ -765,9 +766,9 @@ void Test2_L3_RX(uint8_t Source){
 		//unknown message type
 	}
 
-	message--;
 	free(message);
 	Clean(BASE_DATA);
+	HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_12);
 }
 
 void Test_L3_RX(void){
@@ -823,7 +824,6 @@ void Clean(struct Data_Node Node){
 	struct Data_Node *temp;
 	if(Node.NXT!=NULL){
 		temp=Node.NXT;
-		Node=*Node.NXT;
 		while(temp!=NULL){
 			Node=*Node.NXT;
 			free(temp);
