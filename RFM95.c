@@ -359,10 +359,12 @@ void RFM95_LoRa_Init(double Freq, uint8_t PayloadLength, uint8_t CodingRate, uin
 
 	BASE_DATA.NXT=NULL;
 
+	BASE_ADDRESS.NXT=NULL;
+
 	L3NODE.WEIGHT=255;
 	L3NODE.NXT_HOP=0b0111111;
-	L3NODE.FIFO_PTR=0;
 	L3NODE.LAST_RU=0;
+	L3NODE.FIFO=&BASE_ADDRESS;
 	L3NODE.DATA=&BASE_DATA;
 
 }
@@ -486,11 +488,77 @@ void Send_ACK(uint8_t Address, uint8_t ID){
 
 uint8_t Get_DST(void){
 
-return(0xAB);
+return(0x02);
 }
 
 
 void LoRa_RX(void){
+	uint8_t rxbase = 0;												//Set FifoPtrAddr to FifoRxCurrentAddr
+	RFM95_Reg_Read(RFM95_REG_10_FIFO_RX_CURRENT_ADDR,&rxbase,1);
+	RFM95_Reg_Write(RFM95_REG_0D_FIFO_ADDR_PTR , &rxbase, 1);
+
+	uint8_t len =0;													//How many bits of data have we received
+	RFM95_Reg_Read(RFM95_REG_22_PAYLOAD_LENGTH,&len,1);
+
+	uint8_t *buf = (uint8_t*) malloc(len);							//Make a buffer to stor the data
+	RFM95_Reg_Read(RFM95_REG_00_FIFO, buf, len);
+
+	struct L2Header header;
+	header.DST = *buf;
+	buf++;
+	header.SRC = *buf;
+	buf++;
+	header.TTL = *buf & 0b11;
+	header.ID = (*buf>>2) & 0b111;
+	header.CHECK = (*buf>>5) & 0b111;
+	buf++;
+
+	if((header.CHECK==Check_CRC(buf)) & ((header.DST==ADDRESS) | (header.DST==BROADCAST)| (header.DST==ACK))){
+
+		if (header.SRC==ACK){
+			HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_15);
+			timing(0);
+			if(PACKETS>1){
+				DATA+=DATA_SIZE;
+				PACKETS--;
+				L2HEADER.TTL=3;
+				Layer2_Send(DATA,1);
+			}
+			else if(PACKETS==1){
+				PACKETS--;
+				DATA=DATA-LEN;
+				free(DATA);
+			}
+		}
+		else{
+
+			Send_ACK(header.SRC,header.ID);
+
+			if(header.ID==0){
+				L2HEADER.OLD_ID=8;
+				Set_L3Data(buf);
+				L3_RX(header.SRC);
+			}
+
+			else if((L2HEADER.OLD_ID==8)|((header.ID%7+1)==L2HEADER.OLD_ID)){
+				L2HEADER.OLD_ID=header.ID;
+				Set_L3Data(buf);
+			}
+		}
+	}
+
+	buf-=3;
+	free(buf);														//Free the buffer
+
+	uint8_t IRQ_Flags=0xFF;											//clear flags on LoRa Radio
+	RFM95_Reg_Write(RFM95_REG_12_IRQ_FLAGS , &IRQ_Flags, 1);
+	RFM95_Reg_Write(RFM95_REG_12_IRQ_FLAGS , &IRQ_Flags, 1);
+
+	RFM95_Set_Mode(RFM95_LONG_RANGE_MODE|RFM95_MODE_RXCONTINUOUS);	//Enter RX mode
+
+}
+
+void Test_LoRa_RX(void){
 	uint8_t rxbase = 0;												//Set FifoPtrAddr to FifoRxCurrentAddr
 	RFM95_Reg_Read(RFM95_REG_10_FIFO_RX_CURRENT_ADDR,&rxbase,1);
 	RFM95_Reg_Write(RFM95_REG_0D_FIFO_ADDR_PTR , &rxbase, 1);
@@ -539,7 +607,7 @@ void LoRa_RX(void){
 			if(header.ID==0){
 				L2HEADER.OLD_ID=8;
 				Set_L3Data(buf);
-				L3_RX();
+				Test2_L3_RX(header.SRC);
 			}
 
 			else if((L2HEADER.OLD_ID==8)|((header.ID%7+1)==L2HEADER.OLD_ID)){
@@ -548,57 +616,6 @@ void LoRa_RX(void){
 			}
 		}
 	}
-
-	buf-=3;
-	free(buf);														//Free the buffer
-
-	uint8_t IRQ_Flags=0xFF;											//clear flags on LoRa Radio
-	RFM95_Reg_Write(RFM95_REG_12_IRQ_FLAGS , &IRQ_Flags, 1);
-	RFM95_Reg_Write(RFM95_REG_12_IRQ_FLAGS , &IRQ_Flags, 1);
-
-	RFM95_Set_Mode(RFM95_LONG_RANGE_MODE|RFM95_MODE_RXCONTINUOUS);	//Enter RX mode
-
-}
-
-void Test_LoRa_RX(void){
-	uint8_t rxbase = 0;												//Set FifoPtrAddr to FifoRxCurrentAddr
-	RFM95_Reg_Read(RFM95_REG_10_FIFO_RX_CURRENT_ADDR,&rxbase,1);
-	RFM95_Reg_Write(RFM95_REG_0D_FIFO_ADDR_PTR , &rxbase, 1);
-
-	uint8_t len =0;													//How many bits of data have we received
-	RFM95_Reg_Read(RFM95_REG_13_RX_NB_BYTES,&len,1);
-
-	uint8_t *buf = (uint8_t*) malloc(len);							//Make a buffer to stor the data
-	RFM95_Reg_Read(RFM95_REG_00_FIFO, buf, len);
-
-	struct L2Header header;
-	header.DST = *buf;
-	buf++;
-	header.SRC = *buf;
-	buf++;
-	header.TTL = *buf & 0b11;
-	header.ID = (*buf>>2) & 0b111;
-	header.CHECK = (*buf>>5) & 0b111;
-	buf++;
-
-	if(header.CHECK==Check_CRC(buf)){
-		CRC_Good++;
-	}
-	else{
-		CRC_Bad++;
-	}
-
-	char text[40];
-	sprintf(text,"Good/Bad = %d/%d %d",CRC_Good,CRC_Bad,header.CHECK);
-	burstSerial(&text[0],strlen(text));
-
-	sprintf(text,"RSSI = %d",RFM95_Get_RSSI());
-	burstSerial(&text[0],strlen(text));
-
-	sprintf(text,"SNR = %d",RFM95_Get_SNR());
-	burstSerial(&text[0],strlen(text));
-
-	burstSerial((char*)buf,len-3);
 
 	buf-=3;
 	free(buf);														//Free the buffer
@@ -661,7 +678,99 @@ void Layer2_Send(uint8_t *Data, uint8_t Len){
 	LoRa_Send(DATA);
 }
 
-void L3_RX(void){
+void L3_RX(uint8_t Source){
+
+	struct Data_Node data;
+	data=BASE_DATA;
+
+	int size=DATA_SIZE;
+	while(data.NXT->NXT!=NULL){
+		size+=DATA_SIZE;
+		data=*data.NXT;
+	}
+
+	uint8_t *message =(uint8_t*) malloc(size);
+	uint8_t *temp=message;
+
+	data=BASE_DATA;
+	for(int x=0;x<DATA_SIZE;x++){
+		*temp=data.DATA[x];
+		temp++;
+	}
+	while(data.NXT->NXT!=NULL){
+		data=*data.NXT;
+		for(int x=0;x<DATA_SIZE;x++){
+			*temp=data.DATA[x];
+			temp++;
+		}
+	}
+
+	burstSerial((char*)message,size);
+
+	Clean(BASE_DATA);
+}
+
+void Test2_L3_RX(uint8_t Source){
+
+	struct Data_Node data;
+	data=BASE_DATA;
+
+	int size=DATA_SIZE;
+	while(data.NXT->NXT!=NULL){
+		size+=DATA_SIZE;
+		data=*data.NXT;
+	}
+
+	uint8_t *message =(uint8_t*) malloc(size);
+	uint8_t *temp=message;
+
+	data=BASE_DATA;
+	for(int x=0;x<DATA_SIZE;x++){
+		*temp=data.DATA[x];
+		temp++;
+	}
+	while(data.NXT->NXT!=NULL){
+		data=*data.NXT;
+		for(int x=0;x<DATA_SIZE;x++){
+			*temp=data.DATA[x];
+			temp++;
+		}
+	}
+
+	uint8_t type = *message;
+	message++;
+
+	if(type==TRNSFR){
+		//transfer protocol
+		if(ADDRESS==0x03){
+			burstSerial((char*)message,size);
+		}
+		else{
+			Test_L3_TX(message,(size-1));
+		}
+	}
+	else if(type==RU){
+		//router update protocol
+	}
+	else if(type==RUA){
+		//router update acknowledge protocol
+	}
+	else if(type==TR){
+		//top router protocol
+	}
+	else if(type==TRD){
+		//top router done protocol
+	}
+	else{
+		//unknown message type
+	}
+
+	message--;
+	free(message);
+	Clean(BASE_DATA);
+}
+
+void Test_L3_RX(void){
 
 	struct Data_Node data;
 	data=BASE_DATA;
@@ -676,6 +785,25 @@ void L3_RX(void){
 	}
 	serial(13);
 	Clean(BASE_DATA);
+}
+
+void Test_L3_TX(uint8_t *Data, uint8_t Len){
+
+	uint8_t *header =(uint8_t*) malloc(Len+1);
+	uint8_t *temp=header;
+
+	*temp=TRNSFR;
+	temp++;
+	for(int j=0;j<Len;j++){
+
+		*temp=*Data;
+		Data++;
+		temp++;
+
+	}
+
+	Layer2_Send(header,Len+1);
+	free(header);
 }
 
 void Set_L3Data(uint8_t *Data){

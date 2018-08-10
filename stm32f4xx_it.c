@@ -111,7 +111,8 @@ void EXTI0_IRQHandler(void)
   /* USER CODE BEGIN EXTI0_IRQn 0 */
 
 	char data[130]="ABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890";
-	Layer2_Send((uint8_t*)&data,strlen(data));
+	//Layer2_Send((uint8_t*)&data,strlen(data));
+	Test_L3_TX((uint8_t*)&data,strlen(data));
 
   /* USER CODE END EXTI0_IRQn 0 */
   HAL_GPIO_EXTI_IRQHandler(GPIO_PIN_0);
@@ -152,8 +153,9 @@ void EXTI2_IRQHandler(void)
 
 	if (IRQ_Flags&RFM95_RX_DONE){
 		HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_14);
-//		Test_LoRa_RX();
-		LoRa_RX();
+		Test_LoRa_RX();
+//		LoRa_RX();
+		RFM95_Set_Mode(RFM95_LONG_RANGE_MODE|RFM95_MODE_RXCONTINUOUS);
 	}
 
 	if(IRQ_Flags&RFM95_TX_DONE){

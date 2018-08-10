@@ -17,18 +17,29 @@
 #include "main.h"
 
 //unique address for this node
-#define ADDRESS  										0xAB
+#define ADDRESS  										0x01
 //global address for all nodes
 #define BROADCAST  										0xFF
 //used as the source address in acknowledgments
 #define ACK  											0x00
 //number of bytes of data in layer 2 packet
 #define DATA_SIZE										13
+//Message types
+#define TRNSFR	0x1
+#define RU		0x2
+#define RUA		0x3
+#define TR		0x4
+#define TRD		0x5
 
 
 struct Data_Node{
 	uint8_t DATA[DATA_SIZE];
 	struct Data_Node *NXT;
+};
+
+struct Address_Node{
+	uint8_t ADD;
+	struct Address_Node *NXT;
 };
 
 struct L2Header{
@@ -46,8 +57,7 @@ struct L3Node{
 	uint8_t WEIGHT;
 	uint8_t NXT_HOP;
 	uint8_t LAST_RU;
-	uint8_t ADD_FIFO[256];
-	uint8_t FIFO_PTR;
+	struct Address_Node *FIFO;
 	struct Data_Node *DATA;
 
 };
@@ -57,7 +67,7 @@ volatile uint8_t TMOUT;
 struct L2Header L2HEADER;
 struct Data_Node BASE_DATA;
 struct L3Node L3NODE;
-
+struct Address_Node BASE_ADDRESS;
 
 
 //functions
@@ -120,7 +130,10 @@ void Test_LoRa_RX(void);
 void Ping_Test(void);
 void Ping_Test2(void);
 void Power_Test(void);
-void L3_RX(void);
+void L3_RX(uint8_t Source);
+void Test_L3_RX(void);
+void Test2_L3_RX(uint8_t Source);
+void Test_L3_TX(uint8_t *Data, uint8_t Len);
 void Set_L3Data(uint8_t *Data);
 void Clean(struct Data_Node Node);
 
