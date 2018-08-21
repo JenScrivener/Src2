@@ -48,6 +48,7 @@ int count=0;
 /* External variables --------------------------------------------------------*/
 extern RTC_HandleTypeDef hrtc;
 extern TIM_HandleTypeDef htim2;
+extern TIM_HandleTypeDef htim3;
 extern UART_HandleTypeDef huart1;
 extern UART_HandleTypeDef huart2;
 
@@ -110,13 +111,24 @@ void EXTI0_IRQHandler(void)
 {
   /* USER CODE BEGIN EXTI0_IRQn 0 */
 
-	char data[130]="ABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890";
-	//Layer2_Send((uint8_t*)&data,strlen(data));
-	Test_L3_TX((uint8_t*)&data,strlen(data));
+	for(int x=0;x<1000000;x++){
+
+	}
+
+	if(ADDRESS==GTW){
+		SendRU(1);
+	}
+	else{
+		char serial[40];
+		sprintf(serial,"Hello this is a quick test from %d",ADDRESS);
+		Test_L3_TX((uint8_t*)&serial[0], strlen(serial));
+
+	}
 
   /* USER CODE END EXTI0_IRQn 0 */
   HAL_GPIO_EXTI_IRQHandler(GPIO_PIN_0);
   /* USER CODE BEGIN EXTI0_IRQn 1 */
+
 
   /* USER CODE END EXTI0_IRQn 1 */
 }
@@ -152,14 +164,14 @@ void EXTI2_IRQHandler(void)
 	RFM95_Reg_Read(RFM95_REG_12_IRQ_FLAGS, &IRQ_Flags, 1);				//Check which flag caused the interupt
 
 	if (IRQ_Flags&RFM95_RX_DONE){
-		HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_14);
+		HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_13);
 		Test_LoRa_RX();
 //		LoRa_RX();
 		RFM95_Set_Mode(RFM95_LONG_RANGE_MODE|RFM95_MODE_RXCONTINUOUS);
+
 	}
 
 	if(IRQ_Flags&RFM95_TX_DONE){
-		HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_13);
 
 		RFM95_Set_Mode(RFM95_LONG_RANGE_MODE|RFM95_MODE_RXCONTINUOUS);
 
@@ -167,9 +179,10 @@ void EXTI2_IRQHandler(void)
 		RFM95_Reg_Write(RFM95_REG_12_IRQ_FLAGS , &IRQ_Flags, 1);
 		RFM95_Reg_Write(RFM95_REG_12_IRQ_FLAGS , &IRQ_Flags, 1);
 		RFM95_Set_Freq(915.25);											//set frequency ready to receive next transmission
+		HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_15);
 
-//		Power_Test();
 	}
+
 
   /* USER CODE END EXTI2_IRQn 1 */
 }
@@ -186,6 +199,20 @@ void TIM2_IRQHandler(void)
   /* USER CODE BEGIN TIM2_IRQn 1 */
 
   /* USER CODE END TIM2_IRQn 1 */
+}
+
+/**
+* @brief This function handles TIM3 global interrupt.
+*/
+void TIM3_IRQHandler(void)
+{
+  /* USER CODE BEGIN TIM3_IRQn 0 */
+
+  /* USER CODE END TIM3_IRQn 0 */
+  HAL_TIM_IRQHandler(&htim3);
+  /* USER CODE BEGIN TIM3_IRQn 1 */
+
+  /* USER CODE END TIM3_IRQn 1 */
 }
 
 /**
@@ -238,12 +265,18 @@ void RTC_Alarm_IRQHandler(void)
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
   if(htim->Instance==TIM2){
-	  timing(0);
+	  timing2(0);
 	  char data[40]="doops";
 	  L2HEADER.TTL--;
 	  if(L2HEADER.TTL>0){
 		  Layer2_Send((uint8_t*)&data[0],strlen(data));
 	  }
+  }
+  if(htim->Instance==TIM3){
+	  timing3(0);
+	  L3NODE.FIFO=&BASE_ADDRESS;
+//	  PrintRUList();
+	  UpdateTR();
   }
 }
 

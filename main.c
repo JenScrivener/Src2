@@ -51,6 +51,7 @@ RTC_HandleTypeDef hrtc;
 SPI_HandleTypeDef hspi2;
 
 TIM_HandleTypeDef htim2;
+TIM_HandleTypeDef htim3;
 
 UART_HandleTypeDef huart1;
 UART_HandleTypeDef huart2;
@@ -68,6 +69,7 @@ static void MX_USART2_UART_Init(void);
 static void MX_SPI2_Init(void);
 static void MX_RTC_Init(void);
 static void MX_TIM2_Init(void);
+static void MX_TIM3_Init(void);
 
 /* USER CODE BEGIN PFP */
 /* Private function prototypes -----------------------------------------------*/
@@ -112,6 +114,7 @@ int main(void)
   MX_SPI2_Init();
   MX_RTC_Init();
   MX_TIM2_Init();
+  MX_TIM3_Init();
   /* USER CODE BEGIN 2 */
 
   HAL_NVIC_SetPriority(USART1_IRQn, 0, 0);
@@ -137,6 +140,7 @@ int main(void)
 
   RFM95_LoRa_Init(915.25, (DATA_SIZE+3), RFM95_CODING_RATE_4_8, 10, RFM95_BW_500KHZ, 15);
   RFM95_Set_Mode(RFM95_LONG_RANGE_MODE|RFM95_MODE_RXCONTINUOUS);
+
 
   /* USER CODE END 2 */
 
@@ -360,6 +364,38 @@ static void MX_TIM2_Init(void)
 
 }
 
+/* TIM3 init function */
+static void MX_TIM3_Init(void)
+{
+
+  TIM_ClockConfigTypeDef sClockSourceConfig;
+  TIM_MasterConfigTypeDef sMasterConfig;
+
+  htim3.Instance = TIM3;
+  htim3.Init.Prescaler = 50000;
+  htim3.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim3.Init.Period = 30000;
+  htim3.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  if (HAL_TIM_Base_Init(&htim3) != HAL_OK)
+  {
+    _Error_Handler(__FILE__, __LINE__);
+  }
+
+  sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
+  if (HAL_TIM_ConfigClockSource(&htim3, &sClockSourceConfig) != HAL_OK)
+  {
+    _Error_Handler(__FILE__, __LINE__);
+  }
+
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
+  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+  if (HAL_TIMEx_MasterConfigSynchronization(&htim3, &sMasterConfig) != HAL_OK)
+  {
+    _Error_Handler(__FILE__, __LINE__);
+  }
+
+}
+
 /* USART1 init function */
 static void MX_USART1_UART_Init(void)
 {
@@ -468,7 +504,7 @@ static void MX_GPIO_Init(void)
 
 /* USER CODE BEGIN 4 */
 
-void timing(int set){
+void timing2(int set){
 	if(set){
 		TIM2->CNT=0;
 		HAL_TIM_Base_Start_IT(&htim2);
@@ -476,6 +512,17 @@ void timing(int set){
 	else{
 		TIM2->CNT=0;
 		HAL_TIM_Base_Stop_IT(&htim2);
+	}
+}
+
+void timing3(int set){
+	if(set){
+		TIM3->CNT=0;
+		HAL_TIM_Base_Start_IT(&htim3);
+	}
+	else{
+		TIM3->CNT=0;
+		HAL_TIM_Base_Stop_IT(&htim3);
 	}
 }
 

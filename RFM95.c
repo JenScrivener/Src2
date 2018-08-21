@@ -361,8 +361,14 @@ void RFM95_LoRa_Init(double Freq, uint8_t PayloadLength, uint8_t CodingRate, uin
 
 	BASE_ADDRESS.NXT=NULL;
 
-	L3NODE.WEIGHT=255;
-	L3NODE.NXT_HOP=0b0111111;
+	if(ADDRESS==GTW){
+		L3NODE.WEIGHT=0;
+	}
+	else{
+		L3NODE.WEIGHT=255;
+	}
+	L3NODE.NXT_HOP=GTW;
+	L3NODE.NXT_HOP_FOUND=0;
 	L3NODE.LAST_RU=0;
 	L3NODE.FIFO=&BASE_ADDRESS;
 	L3NODE.DATA=&BASE_DATA;
@@ -488,9 +494,8 @@ void Send_ACK(uint8_t Address, uint8_t ID){
 
 uint8_t Get_DST(void){
 
-return(0x02);
+	return(L3NODE.NXT_HOP);
 }
-
 
 void LoRa_RX(void){
 	uint8_t rxbase = 0;												//Set FifoPtrAddr to FifoRxCurrentAddr
@@ -516,8 +521,7 @@ void LoRa_RX(void){
 	if((header.CHECK==Check_CRC(buf)) & ((header.DST==ADDRESS) | (header.DST==BROADCAST)| (header.DST==ACK))){
 
 		if (header.SRC==ACK){
-			HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_15);
-			timing(0);
+			timing2(0);
 			if(PACKETS>1){
 				DATA+=DATA_SIZE;
 				PACKETS--;
@@ -532,15 +536,14 @@ void LoRa_RX(void){
 		}
 		else{
 
-			Send_ACK(header.SRC,header.ID);
-
 			if(header.ID==0){
 				L2HEADER.OLD_ID=8;
 				Set_L3Data(buf);
-				L3_RX(header.SRC);
+				Test3_L3_RX(header.SRC);
 			}
 
 			else if((L2HEADER.OLD_ID==8)|((header.ID%7+1)==L2HEADER.OLD_ID)){
+				Send_ACK(header.SRC,header.ID);
 				L2HEADER.OLD_ID=header.ID;
 				Set_L3Data(buf);
 			}
@@ -582,8 +585,7 @@ void Test_LoRa_RX(void){
 	if((header.CHECK==Check_CRC(buf)) & ((header.DST==ADDRESS) | (header.DST==BROADCAST)| (header.DST==ACK))){
 
 		if (header.SRC==ACK){
-			HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_15);
-			timing(0);
+			timing2(0);
 			if(PACKETS>1){
 				DATA+=DATA_SIZE;
 				PACKETS--;
@@ -598,19 +600,14 @@ void Test_LoRa_RX(void){
 		}
 		else{
 
-			char serial[40];
-			sprintf(serial, "ID is %d", header.ID);
-			burstSerial(&serial[0],strlen(serial));
-
-			Send_ACK(header.SRC,header.ID);
-
 			if(header.ID==0){
 				L2HEADER.OLD_ID=8;
 				Set_L3Data(buf);
-				Test2_L3_RX(header.SRC);
+				Test3_L3_RX(header.SRC);
 			}
 
 			else if((L2HEADER.OLD_ID==8)|((header.ID%7+1)==L2HEADER.OLD_ID)){
+				Send_ACK(header.SRC,header.ID);
 				L2HEADER.OLD_ID=header.ID;
 				Set_L3Data(buf);
 			}
@@ -674,11 +671,12 @@ void Layer2_Send(uint8_t *Data, uint8_t Len){
 	L2HEADER.SRC=ADDRESS;
 	L2HEADER.CHECK=Check_CRC(DATA);
 	TIM2->CNT=0;
-	timing(1);
+	timing2(1);
 	LoRa_Send(DATA);
+
 }
 
-void L3_RX(uint8_t Source){
+void Test3_L3_RX(uint8_t Source){
 
 	struct Data_Node data;
 	data=BASE_DATA;
@@ -705,8 +703,79 @@ void L3_RX(uint8_t Source){
 		}
 	}
 
-	burstSerial((char*)message,size);
+	temp=message;
+	uint8_t type = *temp;
+	temp++;
 
+	if(type==RU){
+		uint8_t lastRU=*temp;
+		temp++;
+		uint8_t add=*temp;
+		temp++;
+		uint8_t weight=*temp;
+		if(((L3NODE.LAST_RU==lastRU)&(weight+1<L3NODE.WEIGHT))|(L3NODE.LAST_RU!=lastRU)){
+			L3NODE.WEIGHT=weight+1;
+			L3NODE.NXT_HOP=add;
+			L3NODE.NXT_HOP_FOUND=1;
+			L3NODE.LAST_RU=lastRU;
+
+			for(int x=0;x<20*ADDRESS;x++){
+				while(SysTick->VAL!=0);
+			}
+
+			SendRUA(add);
+			HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_12);
+		}
+	}
+	else if(type==RUA){
+		struct Address_Node *next = (struct Address_Node *)malloc(sizeof(struct Address_Node));
+		next->NXT=NULL;
+		L3NODE.FIFO->ADD=*temp;
+		L3NODE.FIFO->NXT=next;
+		L3NODE.FIFO=next;
+
+		char test[40];
+		sprintf(test,"RUA from node %d",*temp);
+		burstSerial(&test[0],strlen(test));
+	}
+	else if(type==TR){
+		uint8_t add=*temp;
+		if(add==L3NODE.NXT_HOP){
+			SendRU(L3NODE.LAST_RU);
+		}
+		else{
+			SendTRD(add);
+		}
+
+
+	}
+	else if(type==TRD){
+		struct Address_Node *tempNode = L3NODE.FIFO;
+		if(L3NODE.FIFO->NXT!=NULL){
+			SendTR(L3NODE.FIFO->ADD);
+			L3NODE.FIFO=L3NODE.FIFO->NXT;
+		}
+		else{
+			SendTRD(L3NODE.NXT_HOP);
+		}
+		free(tempNode);
+	}
+	else if(type==TRNSFR){
+		//transfer protocol
+		Send_ACK(Source,0);
+		if(ADDRESS==0x01){
+			burstSerial((char*)temp,size-1);
+		}
+		else{
+			Test_L3_TX(temp,(size-1));
+		}
+	}
+	else{
+		//unknown message type
+		Send_ACK(Source,0);
+	}
+
+	free(message);
 	Clean(BASE_DATA);
 }
 
@@ -768,7 +837,6 @@ void Test2_L3_RX(uint8_t Source){
 
 	free(message);
 	Clean(BASE_DATA);
-	HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_12);
 }
 
 void Test_L3_RX(void){
@@ -790,21 +858,23 @@ void Test_L3_RX(void){
 
 void Test_L3_TX(uint8_t *Data, uint8_t Len){
 
-	uint8_t *header =(uint8_t*) malloc(Len+1);
-	uint8_t *temp=header;
+	if(L3NODE.NXT_HOP_FOUND){
+		uint8_t *header =(uint8_t*) malloc(Len+1);
+		uint8_t *temp=header;
 
-	*temp=TRNSFR;
-	temp++;
-	for(int j=0;j<Len;j++){
-
-		*temp=*Data;
-		Data++;
+		*temp=TRNSFR;
 		temp++;
+		for(int j=0;j<Len;j++){
 
+			*temp=*Data;
+			Data++;
+			temp++;
+
+		}
+
+		Layer2_Send(header,Len+1);
+		free(header);
 	}
-
-	Layer2_Send(header,Len+1);
-	free(header);
 }
 
 void Set_L3Data(uint8_t *Data){
@@ -832,6 +902,93 @@ void Clean(struct Data_Node Node){
 	}
 	BASE_DATA.NXT=NULL;
 	L3NODE.DATA=&BASE_DATA;
+}
+
+void SendRU(uint8_t RUID){
+	char test[40]="sending router update";
+	burstSerial(&test[0],strlen(test));
+
+	uint8_t data[DATA_SIZE];
+	data[0]=RU;
+	data[1]=RUID;
+	data[2]=ADDRESS;
+	data[3]=L3NODE.WEIGHT;
+	L2HEADER.ID=0;
+	L2HEADER.DST=BROADCAST;
+	L2HEADER.SRC=ADDRESS;
+	L2HEADER.CHECK=Check_CRC(data);
+	TIM3->CNT=0;
+	timing3(1);
+	LoRa_Send(data);
+}
+
+void SendRUA(uint8_t Address){
+
+	uint8_t data[DATA_SIZE];
+	data[0]=RUA;
+	data[1]=ADDRESS;
+	L2HEADER.ID=0;
+	L2HEADER.DST=Address;
+	L2HEADER.SRC=ADDRESS;
+	L2HEADER.CHECK=Check_CRC(&data[0]);
+	LoRa_Send(&data[0]);
+}
+
+void SendTR(uint8_t Address){
+
+	uint8_t data[DATA_SIZE];
+	data[0]=TR;
+	data[1]=ADDRESS;
+	L2HEADER.ID=0;
+	L2HEADER.DST=Address;
+	L2HEADER.SRC=ADDRESS;
+	L2HEADER.CHECK=Check_CRC(&data[0]);
+	LoRa_Send(&data[0]);
+}
+
+void SendTRD(uint8_t Address){
+
+	uint8_t data[DATA_SIZE];
+	data[0]=TRD;
+	L2HEADER.ID=0;
+	L2HEADER.DST=Address;
+	L2HEADER.SRC=ADDRESS;
+	L2HEADER.CHECK=Check_CRC(&data[0]);
+	LoRa_Send(&data[0]);
+}
+
+void PrintRUList(void){
+	char serial[40];
+	struct Address_Node addNode=BASE_ADDRESS;
+	sprintf(serial,"The nodes that responded are:");
+	burstSerial(&serial[0],strlen(serial));
+	while(addNode.NXT!=NULL){
+		sprintf(serial,"Node %d",addNode.ADD);
+		burstSerial(&serial[0],strlen(serial));
+		addNode=*addNode.NXT;
+	}
+}
+
+void UpdateTR(void){
+	struct Address_Node *temp;
+	char serial[40];
+
+	if(L3NODE.FIFO->NXT==NULL){
+		if(L3NODE.FIFO!=&BASE_ADDRESS){
+			free(L3NODE.FIFO);
+		}
+		SendTRD(L3NODE.NXT_HOP);
+		sprintf(serial,"Routing table up to date");
+		burstSerial(&serial[0],strlen(serial));
+	}
+	else{
+		SendTR(L3NODE.FIFO->ADD);
+		temp=L3NODE.FIFO;
+		L3NODE.FIFO=L3NODE.FIFO->NXT;
+		free(temp);
+		sprintf(serial,"%d is the top routere",L3NODE.FIFO->ADD);
+		burstSerial(&serial[0],strlen(serial));
+	}
 }
 
 void Power_Test(void){

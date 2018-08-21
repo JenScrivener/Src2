@@ -22,6 +22,9 @@
 #define BROADCAST  										0xFF
 //used as the source address in acknowledgments
 #define ACK  											0x00
+//address for the gateway
+#define GTW												0x01
+
 //number of bytes of data in layer 2 packet
 #define DATA_SIZE										13
 //Message types
@@ -57,6 +60,7 @@ struct L3Node{
 	uint8_t WEIGHT;
 	uint8_t NXT_HOP;
 	uint8_t LAST_RU;
+	uint8_t NXT_HOP_FOUND;
 	struct Address_Node *FIFO;
 	struct Data_Node *DATA;
 
@@ -109,8 +113,11 @@ int RFM95_Get_SNR(void);
 void RFM95_Set_CRC(uint8_t SET);
 uint8_t RFM95_Get_CRC(void);
 
-void RFM95_DIO_Map(uint8_t DIO, uint8_t Map);
-uint8_t RFM95_Get_DIO_Map(uint8_t DIO);
+void RFM95_DIO_MapReg1(uint8_t DIO, uint8_t Map);
+uint8_t RFM95_Get_DIO_MapReg1(uint8_t DIO);
+
+void RFM95_DIO_MapReg2(uint8_t DIO, uint8_t Map);
+uint8_t RFM95_Get_DIO_MapReg2(uint8_t DIO);
 
 void RFM95_LoRa_Init(double Freq, uint8_t PayloadLength, uint8_t CodingRate, uint8_t SpreadingFactor, uint8_t Bandwidth, uint8_t OutputPower);
 
@@ -130,12 +137,19 @@ void Test_LoRa_RX(void);
 void Ping_Test(void);
 void Ping_Test2(void);
 void Power_Test(void);
-void L3_RX(uint8_t Source);
+void Test3_L3_RX(uint8_t Source);
 void Test_L3_RX(void);
 void Test2_L3_RX(uint8_t Source);
 void Test_L3_TX(uint8_t *Data, uint8_t Len);
 void Set_L3Data(uint8_t *Data);
 void Clean(struct Data_Node Node);
+void SendRU(uint8_t RUID);
+void SendRUA(uint8_t Address);
+void SendTR(uint8_t Address);
+void SendTRD(uint8_t Address);
+void PrintRUList(void);
+void UpdateTR(void);
+
 
 //Register addresses from table 85 Semtech (HopeRF doesn't have an RX current 0x10)
 #define RFM95_REG_00_FIFO                                0x00
