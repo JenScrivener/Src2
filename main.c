@@ -141,7 +141,6 @@ int main(void)
   RFM95_LoRa_Init(915.25, (DATA_SIZE+3), RFM95_CODING_RATE_4_8, 10, RFM95_BW_500KHZ, 15);
   RFM95_Set_Mode(RFM95_LONG_RANGE_MODE|RFM95_MODE_RXCONTINUOUS);
 
-
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -374,7 +373,7 @@ static void MX_TIM3_Init(void)
   htim3.Instance = TIM3;
   htim3.Init.Prescaler = 50000;
   htim3.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim3.Init.Period = 30000;
+  htim3.Init.Period = 5000;
   htim3.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   if (HAL_TIM_Base_Init(&htim3) != HAL_OK)
   {
@@ -507,6 +506,7 @@ static void MX_GPIO_Init(void)
 void timing2(int set){
 	if(set){
 		TIM2->CNT=0;
+		TIM2->SR=0;
 		HAL_TIM_Base_Start_IT(&htim2);
 	}
 	else{
@@ -518,6 +518,7 @@ void timing2(int set){
 void timing3(int set){
 	if(set){
 		TIM3->CNT=0;
+		TIM3->SR=0;
 		HAL_TIM_Base_Start_IT(&htim3);
 	}
 	else{

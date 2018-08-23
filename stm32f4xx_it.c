@@ -122,7 +122,6 @@ void EXTI0_IRQHandler(void)
 		char serial[40];
 		sprintf(serial,"Hello this is a quick test from %d",ADDRESS);
 		Test_L3_TX((uint8_t*)&serial[0], strlen(serial));
-
 	}
 
   /* USER CODE END EXTI0_IRQn 0 */
@@ -264,20 +263,24 @@ void RTC_Alarm_IRQHandler(void)
 
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
-  if(htim->Instance==TIM2){
-	  timing2(0);
-	  char data[40]="doops";
-	  L2HEADER.TTL--;
-	  if(L2HEADER.TTL>0){
-		  Layer2_Send((uint8_t*)&data[0],strlen(data));
-	  }
-  }
-  if(htim->Instance==TIM3){
-	  timing3(0);
-	  L3NODE.FIFO=&BASE_ADDRESS;
-//	  PrintRUList();
-	  UpdateTR();
-  }
+
+	if(htim->Instance==TIM2){
+		timing2(0);
+		char data[40]="doops";
+		L2HEADER.TTL--;
+		if(L2HEADER.TTL>0){
+			Layer2_Send((uint8_t*)&data[0],strlen(data));
+		}
+	}
+	if(htim->Instance==TIM3){
+		timing3(0);
+		L3NODE.FIFO=&BASE_ADDRESS;
+		char serial[40]="Routing update time out";
+		burstSerial(&serial[0],strlen(serial));
+//	    PrintRUList();
+		UpdateTR();
+	}
+
 }
 
 /* USER CODE END 1 */

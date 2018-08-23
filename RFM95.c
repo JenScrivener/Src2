@@ -363,13 +363,15 @@ void RFM95_LoRa_Init(double Freq, uint8_t PayloadLength, uint8_t CodingRate, uin
 
 	if(ADDRESS==GTW){
 		L3NODE.WEIGHT=0;
+		L3NODE.NXT_HOP_FOUND=1;
+		L3NODE.LAST_RU=1;
 	}
 	else{
 		L3NODE.WEIGHT=255;
+		L3NODE.NXT_HOP_FOUND=0;
+		L3NODE.LAST_RU=0;
 	}
 	L3NODE.NXT_HOP=GTW;
-	L3NODE.NXT_HOP_FOUND=0;
-	L3NODE.LAST_RU=0;
 	L3NODE.FIFO=&BASE_ADDRESS;
 	L3NODE.DATA=&BASE_DATA;
 
@@ -751,6 +753,11 @@ void Test3_L3_RX(uint8_t Source){
 	}
 	else if(type==TRD){
 		struct Address_Node *tempNode = L3NODE.FIFO;
+
+		char test[40];
+		sprintf(test,"TRD from node %d",Source);
+		burstSerial(&test[0],strlen(test));
+
 		if(L3NODE.FIFO->NXT!=NULL){
 			SendTR(L3NODE.FIFO->ADD);
 			L3NODE.FIFO=L3NODE.FIFO->NXT;
@@ -917,8 +924,9 @@ void SendRU(uint8_t RUID){
 	L2HEADER.DST=BROADCAST;
 	L2HEADER.SRC=ADDRESS;
 	L2HEADER.CHECK=Check_CRC(data);
-	TIM3->CNT=0;
+
 	timing3(1);
+
 	LoRa_Send(data);
 }
 
@@ -944,6 +952,9 @@ void SendTR(uint8_t Address){
 	L2HEADER.SRC=ADDRESS;
 	L2HEADER.CHECK=Check_CRC(&data[0]);
 	LoRa_Send(&data[0]);
+	char serial[40];
+	sprintf(serial,"%d is the top router",Address);
+	burstSerial(&serial[0],strlen(serial));
 }
 
 void SendTRD(uint8_t Address){
@@ -955,6 +966,8 @@ void SendTRD(uint8_t Address){
 	L2HEADER.SRC=ADDRESS;
 	L2HEADER.CHECK=Check_CRC(&data[0]);
 	LoRa_Send(&data[0]);
+	char serial[40]="Routing table up to date";
+	burstSerial(&serial[0],strlen(serial));
 }
 
 void PrintRUList(void){
@@ -971,23 +984,23 @@ void PrintRUList(void){
 
 void UpdateTR(void){
 	struct Address_Node *temp;
-	char serial[40];
 
 	if(L3NODE.FIFO->NXT==NULL){
 		if(L3NODE.FIFO!=&BASE_ADDRESS){
 			free(L3NODE.FIFO);
 		}
 		SendTRD(L3NODE.NXT_HOP);
-		sprintf(serial,"Routing table up to date");
-		burstSerial(&serial[0],strlen(serial));
+		HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_14);
 	}
 	else{
 		SendTR(L3NODE.FIFO->ADD);
 		temp=L3NODE.FIFO;
 		L3NODE.FIFO=L3NODE.FIFO->NXT;
-		free(temp);
-		sprintf(serial,"%d is the top routere",L3NODE.FIFO->ADD);
-		burstSerial(&serial[0],strlen(serial));
+		if(temp!=&BASE_ADDRESS){
+			free(temp);
+		}
+
+
 	}
 }
 
