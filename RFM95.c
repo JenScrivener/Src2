@@ -7,9 +7,6 @@
 
 #include "RFM95.h"
 
-int CRC_Good=0;
-int CRC_Bad=0;
-
 uint8_t *DATA;
 uint8_t PACKETS=0;
 uint8_t LEN=0;
@@ -364,13 +361,12 @@ void RFM95_LoRa_Init(double Freq, uint8_t PayloadLength, uint8_t CodingRate, uin
 	if(ADDRESS==GTW){
 		L3NODE.WEIGHT=0;
 		L3NODE.NXT_HOP_FOUND=1;
-		L3NODE.LAST_RU=1;
 	}
 	else{
 		L3NODE.WEIGHT=255;
 		L3NODE.NXT_HOP_FOUND=0;
-		L3NODE.LAST_RU=0;
 	}
+	L3NODE.LAST_RU=0;
 	L3NODE.NXT_HOP=GTW;
 	L3NODE.FIFO=&BASE_ADDRESS;
 	L3NODE.DATA=&BASE_DATA;
@@ -989,6 +985,7 @@ void UpdateTR(void){
 		if(L3NODE.FIFO!=&BASE_ADDRESS){
 			free(L3NODE.FIFO);
 		}
+
 		SendTRD(L3NODE.NXT_HOP);
 		HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_14);
 	}

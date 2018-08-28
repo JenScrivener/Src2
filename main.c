@@ -138,7 +138,7 @@ int main(void)
   USART1->DR=10; //The last character is corrupted unless you do the proper wait. Instead of doing the proper wait I added an extra character
   while( !(USART1->SR & UART_FLAG_TXE) );
 
-  RFM95_LoRa_Init(915.25, (DATA_SIZE+3), RFM95_CODING_RATE_4_8, 10, RFM95_BW_500KHZ, 15);
+  RFM95_LoRa_Init(915.25, (DATA_SIZE+3), RFM95_CODING_RATE_4_8, 10, RFM95_BW_500KHZ, 1);
   RFM95_Set_Mode(RFM95_LONG_RANGE_MODE|RFM95_MODE_RXCONTINUOUS);
 
   /* USER CODE END 2 */

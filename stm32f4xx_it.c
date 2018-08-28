@@ -40,8 +40,6 @@
 #include "RFM95.h"
 #include "SPI.h"
 #include <string.h>
-int ping=0;
-int count=0;
 
 /* USER CODE END 0 */
 
@@ -116,11 +114,13 @@ void EXTI0_IRQHandler(void)
 	}
 
 	if(ADDRESS==GTW){
-		SendRU(1);
+		L3NODE.LAST_RU++;
+		L3NODE.FIFO=&BASE_ADDRESS;
+		SendRU(L3NODE.LAST_RU);
 	}
 	else{
-		char serial[40];
-		sprintf(serial,"Hello this is a quick test from %d",ADDRESS);
+		char serial[80];
+		sprintf(serial,"This is node %d, my weight is %d and my next hop is %d",ADDRESS,L3NODE.WEIGHT,L3NODE.NXT_HOP);
 		Test_L3_TX((uint8_t*)&serial[0], strlen(serial));
 	}
 

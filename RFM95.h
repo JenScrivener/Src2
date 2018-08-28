@@ -17,7 +17,7 @@
 #include "main.h"
 
 //unique address for this node
-#define ADDRESS  										0x03
+#define ADDRESS  										0x06
 //global address for all nodes
 #define BROADCAST  										0xFF
 //used as the source address in acknowledgments
