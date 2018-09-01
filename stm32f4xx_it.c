@@ -109,6 +109,7 @@ void EXTI0_IRQHandler(void)
 {
   /* USER CODE BEGIN EXTI0_IRQn 0 */
 
+#ifdef MESH_UP_DATE
 	for(int x=0;x<1000000;x++){
 
 	}
@@ -123,6 +124,8 @@ void EXTI0_IRQHandler(void)
 		sprintf(serial,"This is node %d, my weight is %d and my next hop is %d",ADDRESS,L3NODE.WEIGHT,L3NODE.NXT_HOP);
 		Test_L3_TX((uint8_t*)&serial[0], strlen(serial));
 	}
+#endif
+
 
   /* USER CODE END EXTI0_IRQn 0 */
   HAL_GPIO_EXTI_IRQHandler(GPIO_PIN_0);
@@ -164,8 +167,7 @@ void EXTI2_IRQHandler(void)
 
 	if (IRQ_Flags&RFM95_RX_DONE){
 		HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_13);
-		Test_LoRa_RX();
-//		LoRa_RX();
+		LoRa_RX();
 		RFM95_Set_Mode(RFM95_LONG_RANGE_MODE|RFM95_MODE_RXCONTINUOUS);
 
 	}

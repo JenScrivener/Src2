@@ -76,18 +76,16 @@ struct Address_Node BASE_ADDRESS;
 
 //functions
 
-void RFM95_Reg_Write(uint8_t Reg, uint8_t* Data, uint8_t Len);		//Write len bytes of data to reg
-void RFM95_Reg_Read(uint8_t Reg, uint8_t* Data, uint8_t Len);		//Read len bytes of data from reg
-
-void Init_SPI_Handle(void);
+void RFM95_Reg_Write(uint8_t Reg, uint8_t* Data, uint8_t Len);
+void RFM95_Reg_Read(uint8_t Reg, uint8_t* Data, uint8_t Len);
 
 void CS(int state);
 
-void RFM95_Set_Mode(uint8_t Mode);									//Set Mode reg (0x01)
-uint8_t RFM95_Get_Mode(void);										//Read Mode reg (0x01)
+void RFM95_Set_Mode(uint8_t Mode);
+uint8_t RFM95_Get_Mode(void);
 
-void RFM95_Set_Freq(double Freq);									//Set freq reg (0x06,07&08) to Freq (freq should be in MHz i.e 915)
-double RFM95_Get_Freq(void);										//Get freq from reg(0x06,07,08) in MHz
+void RFM95_Set_Freq(double Freq);
+double RFM95_Get_Freq(void);
 
 void RFM95_Set_Payload_Length(uint8_t PLL);
 uint8_t RFM95_Get_Payload_Length(void);
@@ -110,9 +108,6 @@ uint8_t RFM95_Get_Hop_Period(void);
 int RFM95_Get_RSSI(void);
 int RFM95_Get_SNR(void);
 
-void RFM95_Set_CRC(uint8_t SET);
-uint8_t RFM95_Get_CRC(void);
-
 void RFM95_DIO_MapReg1(uint8_t DIO, uint8_t Map);
 uint8_t RFM95_Get_DIO_MapReg1(uint8_t DIO);
 
@@ -122,25 +117,13 @@ uint8_t RFM95_Get_DIO_MapReg2(uint8_t DIO);
 void RFM95_LoRa_Init(double Freq, uint8_t PayloadLength, uint8_t CodingRate, uint8_t SpreadingFactor, uint8_t Bandwidth, uint8_t OutputPower);
 
 void Hop(void);
-void RFM95_LoRa_Test_Send(uint8_t *Data, uint8_t Len);
-
 void Layer2_Send(uint8_t *Data, uint8_t Len);
 void LoRa_Send(uint8_t *Data);
 uint8_t Check_CRC(uint8_t *buf);
-
 void Send_ACK(uint8_t Address, uint8_t ID);
-uint8_t Get_DST(void);
-void Wait(void);
-
 void LoRa_RX(void);
-void Test_LoRa_RX(void);
-void Ping_Test(void);
-void Ping_Test2(void);
-void Power_Test(void);
-void Test3_L3_RX(uint8_t Source);
-void Test_L3_RX(void);
-void Test2_L3_RX(uint8_t Source);
-void Test_L3_TX(uint8_t *Data, uint8_t Len);
+void L3_RX(uint8_t Source);
+void L3_TX(uint8_t *Data, uint8_t Len);
 void Set_L3Data(uint8_t *Data);
 void Clean(struct Data_Node Node);
 void SendRU(uint8_t RUID);
@@ -151,7 +134,8 @@ void PrintRUList(void);
 void UpdateTR(void);
 
 
-//Register addresses from table 85 Semtech (HopeRF doesn't have an RX current 0x10)
+//Register addresses from table 85 Semtech (the HopeRF data sheet should be the same but
+//it actually doesn't have an RX current 0x10 but the Semtech one is right)
 #define RFM95_REG_00_FIFO                                0x00
 #define RFM95_REG_01_OP_MODE                             0x01
 #define RFM95_REG_02_RESERVED                            0x02
