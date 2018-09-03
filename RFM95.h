@@ -16,6 +16,9 @@
 #include <math.h>
 #include "main.h"
 
+//mode definition
+#define TEST
+
 //unique address for this node
 #define ADDRESS  										0x06
 //global address for all nodes
@@ -33,6 +36,7 @@
 #define RUA		0x3
 #define TR		0x4
 #define TRD		0x5
+#define TST		0x6
 
 
 struct Data_Node{
@@ -122,6 +126,7 @@ void LoRa_Send(uint8_t *Data);
 uint8_t Check_CRC(uint8_t *buf);
 void Send_ACK(uint8_t Address, uint8_t ID);
 void LoRa_RX(void);
+void Test_LoRa_RX(void);
 void L3_RX(uint8_t Source);
 void L3_TX(uint8_t *Data, uint8_t Len);
 void Set_L3Data(uint8_t *Data);
@@ -130,6 +135,7 @@ void SendRU(uint8_t RUID);
 void SendRUA(uint8_t Address);
 void SendTR(uint8_t Address);
 void SendTRD(uint8_t Address);
+void SendTST(void);
 void PrintRUList(void);
 void UpdateTR(void);
 

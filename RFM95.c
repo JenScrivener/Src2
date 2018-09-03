@@ -7,6 +7,9 @@
 
 #include "RFM95.h"
 
+int GOOD=0;
+int BAD=0;
+
 /*
  * Because a layer two transmision requires multiple Lora packets it can
  * be tricky to keep track of what has been sent, also between transmissions
@@ -378,7 +381,7 @@ void RFM95_DIO_MapReg1(uint8_t DIO, uint8_t Map){
 	RFM95_Reg_Read(RFM95_REG_40_DIO_MAPPING1 , &map, 1);
 	map=map&!DIO;
 	Map=Map&0x03;
-	DIO=DIO%3;
+	DIO=DIO/3;
 	while(DIO!=1){
 		DIO=DIO>>2;
 		Map=Map<<2;
@@ -400,7 +403,7 @@ void RFM95_DIO_MapReg2(uint8_t DIO, uint8_t Map){
 	RFM95_Reg_Read(RFM95_REG_41_DIO_MAPPING2 , &map, 1);
 	map=map&!DIO;
 	Map=Map&0x03;
-	DIO=DIO%3;
+	DIO=DIO/3;
 	while(DIO!=1){
 		DIO=DIO>>2;
 		Map=Map<<2;
@@ -420,7 +423,7 @@ uint8_t RFM95_Get_DIO_MapReg1(uint8_t DIO){
 
 	RFM95_Reg_Read(RFM95_REG_40_DIO_MAPPING1 , &map, 1);
 	map=map&DIO;
-	DIO=DIO%3;
+	DIO=DIO/3;
 	while(DIO!=1){
 		DIO=DIO>>2;
 		map=map>>2;
@@ -439,7 +442,7 @@ uint8_t RFM95_Get_DIO_MapReg2(uint8_t DIO){
 
 	RFM95_Reg_Read(RFM95_REG_41_DIO_MAPPING2 , &map, 1);
 	map=map&DIO;
-	DIO=DIO%3;
+	DIO=DIO/3;
 	while(DIO!=1){
 		DIO=DIO>>2;
 		map=map>>2;
@@ -714,6 +717,51 @@ void LoRa_RX(void){
 
 }
 
+void Test_LoRa_RX(void){
+	uint8_t rxbase = 0;												//Set FifoPtrAddr to FifoRxCurrentAddr
+	RFM95_Reg_Read(RFM95_REG_10_FIFO_RX_CURRENT_ADDR,&rxbase,1);
+	RFM95_Reg_Write(RFM95_REG_0D_FIFO_ADDR_PTR , &rxbase, 1);
+
+	uint8_t len =0;													//How many bits of data have we received
+	RFM95_Reg_Read(RFM95_REG_22_PAYLOAD_LENGTH,&len,1);
+
+	uint8_t *buf = (uint8_t*) malloc(len);							//Make a buffer to stor the data
+	RFM95_Reg_Read(RFM95_REG_00_FIFO, buf, len);
+
+	struct L2Header header;
+	header.DST = *buf;
+	buf++;
+	header.SRC = *buf;
+	buf++;
+	header.TTL = *buf & 0b11;
+	header.ID = (*buf>>2) & 0b111;
+	header.CHECK = (*buf>>5) & 0b111;
+	buf++;
+
+	if(header.CHECK==Check_CRC(buf)){
+		GOOD++;
+	}
+	else{
+		BAD++;
+	}
+
+	char test[40];
+	sprintf(test,"Good %d, Bad %d", GOOD,BAD);
+	burstSerial(&test[0],strlen(test));
+
+	SendTST();
+
+	buf-=3;
+	free(buf);														//Free the buffer
+
+	uint8_t IRQ_Flags=0xFF;											//clear flags on LoRa Radio
+	RFM95_Reg_Write(RFM95_REG_12_IRQ_FLAGS , &IRQ_Flags, 1);
+	RFM95_Reg_Write(RFM95_REG_12_IRQ_FLAGS , &IRQ_Flags, 1);
+
+	RFM95_Set_Mode(RFM95_LONG_RANGE_MODE|RFM95_MODE_RXCONTINUOUS);	//Enter RX mode
+
+}
+
 /*
 @brief:		This is the layer three RX. It handels all the network related messages as well as sending messages
 			to the gateway.
@@ -820,6 +868,9 @@ void L3_RX(uint8_t Source){
 			L3_TX(temp,(size-1));
 		}
 	}
+	else if(type==TST){
+		//test message
+	}
 	else{
 		//unknown message type
 		Send_ACK(Source,0);
@@ -833,8 +884,7 @@ void L3_RX(uint8_t Source){
 @brief:		This is the layer three send used for transmitting data to the gateway.
 			It is pretty basic because layer two does most of the heavy lifting so
 			only need to add the small layer three header which specifies which type
-			of layer three message it is (this case is a transfer (the only non
-			network related layer three message))
+			of layer three message it is (this case is a transfer)
 @param: 	Data - a variable length message
 			Len  - the size of the message in bytes
 @return:	NA
@@ -989,6 +1039,24 @@ void SendTRD(uint8_t Address){
 }
 
 /*
+@brief:		Sends a test message
+@param: 	NA
+@return:	NA
+*/
+void SendTST(void){
+
+	uint8_t data[DATA_SIZE];
+	data[0]=TST;
+	L2HEADER.ID=0;
+	L2HEADER.DST=BROADCAST;
+	L2HEADER.SRC=ADDRESS;
+	L2HEADER.CHECK=Check_CRC(&data[0]);
+	LoRa_Send(&data[0]);
+
+	HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_14);
+}
+
+/*
 @brief:		Prints out the list of nodes that responded to your router
 			update and who you will eventually send TR messages to.
 @param: 	NA
@@ -1021,9 +1089,7 @@ void UpdateTR(void){
 		if(L3NODE.FIFO!=&BASE_ADDRESS){
 			free(L3NODE.FIFO);
 		}
-
 		SendTRD(L3NODE.NXT_HOP);
-		HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_14);
 	}
 	else{
 		SendTR(L3NODE.FIFO->ADD);

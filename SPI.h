@@ -5,11 +5,6 @@
  *      Author: jens0
  */
 
-/*
- * SPI handles all the initialising for the SPI comms including chip select and IRQ, and enables an 8bit SPI send function
- */
-
-
 #ifndef SPI_H_
 #define SPI_H_
 
